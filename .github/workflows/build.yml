@@ -14,12 +14,45 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild and WDK Environment
-        uses: microsoft/setup-msbuild@v2
+      - name: Setup MSVC Developer Environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Windows Driver Kit (WDK)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host "Menginstal Windows Driver Kit 11 via Chocolatey..."
+          choco install windowsdriverkit11 -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Detect Windows SDK Version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $kitsRoot = "${env:ProgramFiles(x86)}\Windows Kits\10"
+          $includeRoot = Join-Path $kitsRoot "Include"
+          $best = Get-ChildItem -Path $includeRoot -Directory -ErrorAction SilentlyContinue | 
+                  Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } | 
+                  Where-Object { Test-Path (Join-Path $_.FullName "um\Windows.h") } | 
+                  Sort-Object -Property Name -Descending | 
+                  Select-Object -First 1
+          if (-not $best) { throw "Windows 10/11 SDK tidak ditemukan di $includeRoot" }
+          $sdkVersion = $best.Name
+          Write-Host "Menggunakan SDK Version: $sdkVersion"
+          "WINDOWS_SDK_DIR=$kitsRoot\" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WINDOWS_TARGET_PLATFORM_VERSION=$sdkVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build Driver (Release x64)
+        shell: pwsh
         run: |
-          msbuild package/mcvad.vcxproj /p:Configuration=Release /p:Platform=x64 /v:normal
+          msbuild package/mcvad.vcxproj `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:WindowsTargetPlatformVersion=$env:WINDOWS_TARGET_PLATFORM_VERSION `
+            /p:EnableInfVerif=false `
+            /v:normal
 
       - name: Generate Driver Catalog (mcvad.cat) & Test Sign
         shell: pwsh
@@ -57,7 +90,7 @@ jobs:
         shell: cmd
         run: |
           cd control_panel
-          call build.bat
+          call build.bat --ci
 
       - name: Package Release Bundle
         shell: pwsh

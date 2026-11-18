@@ -71,6 +71,8 @@ goto :FAILED
 
 :RUN_PROMPT
 echo.
+if defined CI goto :END
+if "%1"=="--ci" goto :END
 set /p JALANKAN="Jalankan control_panel.exe sekarang? (Y/N): "
 if /i "!JALANKAN!"=="Y" (
     start "" "%OUT_EXE%"
