@@ -23,9 +23,30 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          Write-Host "Menginstal Windows Driver Kit 11 via Chocolatey..."
-          choco install windowsdriverkit11 -y --no-progress
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Mengunduh dan memasang Windows Driver Kit (WDK) 22H2 dari Microsoft..."
+          $installer = Join-Path $env:RUNNER_TEMP 'wdksetup.exe'
+          (New-Object Net.WebClient).DownloadFile('https://go.microsoft.com/fwlink/?linkid=2196230', $installer)
+          $process = Start-Process -FilePath $installer -ArgumentList '/features', '+', '/quiet', '/norestart' -Wait -PassThru
+          Write-Host "WDK installer exit code: $($process.ExitCode)"
+          
+          # Salin MSBuild toolset dari WDK.vsix langsung ke direktori Visual Studio MSBuild
+          $kitsRoot = "${env:ProgramFiles(x86)}\Windows Kits\10"
+          $vsix = Get-ChildItem "$kitsRoot\Vsix\VS2022\*\WDK.vsix" -ErrorAction SilentlyContinue | Select-Object -Last 1
+          if (-not $vsix) {
+              $vsix = Get-ChildItem "$kitsRoot\Vsix\VS2022\WDK.vsix" -ErrorAction SilentlyContinue | Select-Object -Last 1
+          }
+          if ($vsix) {
+              Write-Host "Mengekstrak integrasi MSBuild dari: $($vsix.FullName)"
+              $vsixExtract = Join-Path $env:RUNNER_TEMP 'wdk-vsix'
+              $vsixZip = Join-Path $env:RUNNER_TEMP 'wdk-vsix.zip'
+              Copy-Item $vsix.FullName $vsixZip
+              Expand-Archive $vsixZip -DestinationPath $vsixExtract -Force
+              $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+              Copy-Item "$vsixExtract\`$MSBuild\*" "$vsPath\MSBuild" -Recurse -Force
+              Write-Host "WDK MSBuild integration sukses dipasang!"
+          } else {
+              Write-Warning "WDK.vsix tidak ditemukan di $kitsRoot\Vsix"
+          }
 
       - name: Detect Windows SDK Version
         shell: pwsh
