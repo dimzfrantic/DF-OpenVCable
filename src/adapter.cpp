@@ -38,7 +38,7 @@ extern "C" DRIVER_INITIALIZE DriverEntry;
 
 extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
     PAGED_CODE();
-    KdPrint(((	d"[MCVAD] DriverEntry: Menginisialisasi All-in-One Multi Virtual Cable\n")));
+    KdPrint(("[MCVAD] DriverEntry: Menginisialisasi All-in-One Multi Virtual Cable\n"));
 
     // Buat Control Device Object untuk komunikasi IOCTL dengan Control Panel GUI
     UNICODE_STRING devName, symName;
@@ -58,7 +58,7 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Reg
     if (NT_SUCCESS(status) && g_pControlDeviceObject) {
         status = IoCreateSymbolicLink(&symName, &devName);
         if (NT_SUCCESS(status)) {
-            KdPrint(((	d"[MCVAD] Control device object created successfully\n")));
+            KdPrint(("[MCVAD] Control device object created successfully\n"));
         }
     }
 
@@ -122,7 +122,7 @@ NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
 
                 for (ULONG i = 0; i < MAX_CABLES; i++) {
                     pStatus->Cables[i].CableIndex = i;
-                    wcscpy_s(pStatus->Cables[i].Name, g_CableNames[i]);
+                    RtlStringCchCopyW(pStatus->Cables[i].Name, sizeof(pStatus->Cables[i].Name) / sizeof(WCHAR), g_CableNames[i]);
                     pStatus->Cables[i].SampleRate = g_ConfiguredSampleRate[i];
                     pStatus->Cables[i].BitsPerSample = DEFAULT_BITS_PER_SAMPLE;
                     pStatus->Cables[i].Channels = DEFAULT_CHANNELS;
@@ -189,7 +189,7 @@ NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
 #pragma code_seg("PAGE")
 NTSTATUS AddDevice(PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT PhysicalDeviceObject) {
     PAGED_CODE();
-    KdPrint(((	d"[MCVAD] AddDevice: Mendaftarkan 5 subdevice virtual audio\n")));
+    KdPrint(("[MCVAD] AddDevice: Mendaftarkan 5 subdevice virtual audio\n"));
 
     NTSTATUS ntStatus = PcAddAdapterDevice(
         DriverObject,
@@ -207,7 +207,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
     UNREFERENCED_PARAMETER(Irp);
     UNREFERENCED_PARAMETER(ResourceList);
 
-    KdPrint(((	d"[MCVAD] StartDevice: Membangun alur loopback untuk 5 virtual cable\n")));
+    KdPrint(("[MCVAD] StartDevice: Membangun alur loopback untuk 5 virtual cable\n"));
 
     ULONG bufferSize = DEFAULT_SAMPLE_RATE * DEFAULT_CHANNELS * (DEFAULT_CONTAINER_SIZE / 8) * BUFFER_DURATION_SECONDS;
 
@@ -237,7 +237,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
                 // 4. Daftarkan Subdevice ke Windows Audio Stack
                 status = PcRegisterSubdevice(DeviceObject, g_Cables[i].SubdeviceName, pPort);
                 if (NT_SUCCESS(status)) {
-                    KdPrint(((	d"[MCVAD] Subdevice terdaftar: %ws\n", g_Cables[i].SubdeviceName)));
+                    KdPrint(("[MCVAD] Subdevice terdaftar: %ws\n", g_Cables[i].SubdeviceName));
                 }
             }
             g_Cables[i].pPort = pPort;

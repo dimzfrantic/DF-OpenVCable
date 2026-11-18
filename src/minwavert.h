@@ -51,8 +51,8 @@ public:
     STDMETHODIMP_(VOID)     GetClockRegister(KSRTAUDIO_HWREGISTER* pRegister);
     STDMETHODIMP_(VOID)     GetPositionRegister(KSRTAUDIO_HWREGISTER* pRegister);
     STDMETHODIMP_(VOID)     GetHWLatency(KSRTAUDIO_HWLATENCY* pLatency);
-    STDMETHODIMP_(NTSTATUS) SetWritePacket(ULONG PacketNumber, DWORD Flags, ULONG EosPacketLength);
-    STDMETHODIMP_(NTSTATUS) GetReadPacket(ULONG* pPacketNumber, DWORD* pFlags, ULONG64* pPerformanceCounterValue, BOOL* pMoreData);
+    STDMETHODIMP_(NTSTATUS) AllocatePagesForMdl(PHYSICAL_ADDRESS HighAddress, SIZE_T TotalBytes, PMDL* pPhysicalPagesMdl);
+    STDMETHODIMP_(VOID)     FreePagesFromMdl(PMDL PhysicalPagesMdl);
 };
 
 //=====================================================================
@@ -87,7 +87,7 @@ public:
     );
 
     // IMiniportWaveRT methods
-    STDMETHODIMP_(NTSTATUS) Init(PUNKNOWN UnknownAdapter, PPORTWAVERT Port);
+    STDMETHODIMP_(NTSTATUS) Init(PUNKNOWN UnknownAdapter, PRESOURCELIST ResourceList, PPORTWAVERT Port);
     STDMETHODIMP_(NTSTATUS) NewStream(
         PMINIPORTWAVERTSTREAM*  ppStream,
         PPORTWAVERTSTREAM       PortStream,

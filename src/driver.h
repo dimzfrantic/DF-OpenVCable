@@ -1,14 +1,33 @@
 #pragma once
 
 #include <ntddk.h>
-#include <windef.h>
 #define NOBITMAP
 #include <mmreg.h>
 #include <ks.h>
 #include <ksmedia.h>
 #include <portcls.h>
+#include <stdunk.h>
+#include <ntstrsafe.h>
 
 #define MCVAD_POOL_TAG 'DAVM' // Pool tag: MVAD
+
+#ifndef SIZEOF_ARRAY
+#define SIZEOF_ARRAY(a) (sizeof(a)/sizeof((a)[0]))
+#endif
+
+// Kernel C++ memory allocation operators
+inline void* __cdecl operator new(size_t size, POOL_TYPE poolType, ULONG tag) {
+    return ExAllocatePoolWithTag(poolType, size, tag);
+}
+inline void __cdecl operator delete(void* p) {
+    if (p) ExFreePool(p);
+}
+inline void __cdecl operator delete(void* p, size_t) {
+    if (p) ExFreePool(p);
+}
+inline void __cdecl operator delete(void* p, POOL_TYPE, ULONG) {
+    if (p) ExFreePool(p);
+}
 
 // Maksimum jumlah pasang Virtual Audio Cable yang didukung dalam 1 driver
 #define MAX_CABLES 5

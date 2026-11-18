@@ -3,31 +3,23 @@
 // IUnknown standard helper boilerplate untuk PortCls
 #pragma code_seg("PAGE")
 
-STDMETHODIMP CMiniportWaveRT::QueryInterface(REFIID InterfaceId, PVOID* Interface) {
+STDMETHODIMP_(NTSTATUS) CMiniportWaveRT::NonDelegatingQueryInterface(REFIID InterfaceId, PVOID* Interface) {
     PAGED_CODE();
     if (!Interface) return STATUS_INVALID_PARAMETER;
 
-    if (IsEqualGUIDAligned(InterfaceId, IID_IUnknown) ||
-        IsEqualGUIDAligned(InterfaceId, IID_IMiniport) ||
-        IsEqualGUIDAligned(InterfaceId, IID_IMiniportWaveRT)) {
-        *Interface = PVOID(PUNKNOWN(this));
-        PUNKNOWN(*Interface)->AddRef();
-        return STATUS_SUCCESS;
+    if (IsEqualGUIDAligned(InterfaceId, IID_IUnknown)) {
+        *Interface = PVOID(PUNKNOWN(PMINIPORTWAVERT(this)));
+    } else if (IsEqualGUIDAligned(InterfaceId, IID_IMiniport)) {
+        *Interface = PVOID(PMINIPORT(this));
+    } else if (IsEqualGUIDAligned(InterfaceId, IID_IMiniportWaveRT)) {
+        *Interface = PVOID(PMINIPORTWAVERT(this));
+    } else {
+        *Interface = NULL;
+        return STATUS_NO_INTERFACE;
     }
-    *Interface = NULL;
-    return STATUS_NO_INTERFACE;
-}
 
-STDMETHODIMP_(ULONG) CMiniportWaveRT::AddRef() {
-    return InterlockedIncrement((PLONG)&m_cRef);
-}
-
-STDMETHODIMP_(ULONG) CMiniportWaveRT::Release() {
-    LONG count = InterlockedDecrement((PLONG)&m_cRef);
-    if (count == 0) {
-        delete this;
-    }
-    return count;
+    PUNKNOWN(*Interface)->AddRef();
+    return STATUS_SUCCESS;
 }
 
 CMiniportWaveRT::CMiniportWaveRT(PUNKNOWN pUnknownOuter) :
@@ -54,9 +46,10 @@ NTSTATUS CMiniportWaveRT::Init(ULONG CableIndex, CCircularRingBuffer* pSharedBuf
     return STATUS_SUCCESS;
 }
 
-STDMETHODIMP_(NTSTATUS) CMiniportWaveRT::Init(PUNKNOWN UnknownAdapter, PPORTWAVERT Port) {
+STDMETHODIMP_(NTSTATUS) CMiniportWaveRT::Init(PUNKNOWN UnknownAdapter, PRESOURCELIST ResourceList, PPORTWAVERT Port) {
     PAGED_CODE();
     UNREFERENCED_PARAMETER(UnknownAdapter);
+    UNREFERENCED_PARAMETER(ResourceList);
     if (!Port) return STATUS_INVALID_PARAMETER;
 
     m_pPort = Port;
@@ -108,9 +101,9 @@ static const KSDATARANGE_AUDIO g_PinDataRangesAudio[] = {
             0,
             0,
             0,
-            STATICGUIDOF(KSDATAFORMAT_TYPE_AUDIO),
-            STATICGUIDOF(KSDATAFORMAT_SUBTYPE_PCM),
-            STATICGUIDOF(KSDATAFORMAT_SPECIFIER_WAVEFORMATEX)
+            { STATICGUIDOF(KSDATAFORMAT_TYPE_AUDIO) },
+            { STATICGUIDOF(KSDATAFORMAT_SUBTYPE_PCM) },
+            { STATICGUIDOF(KSDATAFORMAT_SPECIFIER_WAVEFORMATEX) }
         },
         2,      // MaximumChannels
         16,     // MinimumBitsPerSample
@@ -148,10 +141,10 @@ static const PCPIN_DESCRIPTOR g_MiniportPins[] = {
 };
 
 static const GUID g_MiniportCategories[] = {
-    STATICGUIDOF(KSCATEGORY_AUDIO),
-    STATICGUIDOF(KSCATEGORY_RENDER),
-    STATICGUIDOF(KSCATEGORY_CAPTURE),
-    STATICGUIDOF(KSCATEGORY_REALTIME)
+    { STATICGUIDOF(KSCATEGORY_AUDIO) },
+    { STATICGUIDOF(KSCATEGORY_RENDER) },
+    { STATICGUIDOF(KSCATEGORY_CAPTURE) },
+    { STATICGUIDOF(KSCATEGORY_REALTIME) }
 };
 
 static const PCFILTER_DESCRIPTOR g_MiniportFilterDescriptor = {
@@ -272,7 +265,7 @@ NTSTATUS CMiniportWaveRTStream::Init(
     m_bCapture = Capture;
 
     ULONG formatSize = sizeof(KSDATAFORMAT_WAVEFORMATEXTENSIBLE);
-    m_pFormat = (PKSDATAFORMAT_WAVEFORMATEXTENSIBLE)ExAllocatePool2(POOL_FLAG_NON_PAGED, formatSize, MCVAD_POOL_TAG);
+    m_pFormat = (PKSDATAFORMAT_WAVEFORMATEXTENSIBLE)ExAllocatePoolWithTag(NonPagedPoolNx, formatSize, MCVAD_POOL_TAG);
     if (!m_pFormat) return STATUS_INSUFFICIENT_RESOURCES;
 
     RtlCopyMemory(m_pFormat, DataFormat, sizeof(KSDATAFORMAT_WAVEFORMATEXTENSIBLE));
@@ -357,7 +350,7 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::AllocateAudioBuffer(
     if (!ppMdl || !pActualSize || !pOffsetFromArm || !pCacheType) return STATUS_INVALID_PARAMETER;
 
     m_DmaBufferSize = (RequestedSize + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-    m_pDmaBuffer = ExAllocatePool2(POOL_FLAG_NON_PAGED, m_DmaBufferSize, MCVAD_POOL_TAG);
+    m_pDmaBuffer = ExAllocatePoolWithTag(NonPagedPoolNx, m_DmaBufferSize, MCVAD_POOL_TAG);
     if (!m_pDmaBuffer) return STATUS_INSUFFICIENT_RESOURCES;
 
     m_pDmaMdl = IoAllocateMdl(m_pDmaBuffer, m_DmaBufferSize, FALSE, FALSE, NULL);
@@ -405,42 +398,30 @@ STDMETHODIMP_(VOID) CMiniportWaveRTStream::GetHWLatency(KSRTAUDIO_HWLATENCY* pLa
     }
 }
 
-STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::SetWritePacket(ULONG PacketNumber, DWORD Flags, ULONG EosPacketLength) {
-    UNREFERENCED_PARAMETER(PacketNumber);
-    UNREFERENCED_PARAMETER(Flags);
-    UNREFERENCED_PARAMETER(EosPacketLength);
-    return STATUS_SUCCESS;
+STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::AllocatePagesForMdl(PHYSICAL_ADDRESS HighAddress, SIZE_T TotalBytes, PMDL* pPhysicalPagesMdl) {
+    UNREFERENCED_PARAMETER(HighAddress);
+    UNREFERENCED_PARAMETER(TotalBytes);
+    UNREFERENCED_PARAMETER(pPhysicalPagesMdl);
+    return STATUS_NOT_IMPLEMENTED;
 }
 
-STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetReadPacket(ULONG* pPacketNumber, DWORD* pFlags, ULONG64* pPerformanceCounterValue, BOOL* pMoreData) {
-    if (pPacketNumber) *pPacketNumber = 0;
-    if (pFlags) *pFlags = 0;
-    if (pPerformanceCounterValue) *pPerformanceCounterValue = KeQueryPerformanceCounter(NULL).QuadPart;
-    if (pMoreData) *pMoreData = FALSE;
-    return STATUS_SUCCESS;
+STDMETHODIMP_(VOID) CMiniportWaveRTStream::FreePagesFromMdl(PMDL PhysicalPagesMdl) {
+    UNREFERENCED_PARAMETER(PhysicalPagesMdl);
 }
 
 // IUnknown implementation untuk stream
-STDMETHODIMP CMiniportWaveRTStream::QueryInterface(REFIID InterfaceId, PVOID* Interface) {
+STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::NonDelegatingQueryInterface(REFIID InterfaceId, PVOID* Interface) {
     if (!Interface) return STATUS_INVALID_PARAMETER;
-    if (IsEqualGUIDAligned(InterfaceId, IID_IUnknown) ||
-        IsEqualGUIDAligned(InterfaceId, IID_IMiniportWaveRTStream)) {
-        *Interface = PVOID(PUNKNOWN(this));
-        PUNKNOWN(*Interface)->AddRef();
-        return STATUS_SUCCESS;
-    }
-    *Interface = NULL;
-    return STATUS_NO_INTERFACE;
-}
 
-STDMETHODIMP_(ULONG) CMiniportWaveRTStream::AddRef() {
-    return InterlockedIncrement((PLONG)&m_cRef);
-}
-
-STDMETHODIMP_(ULONG) CMiniportWaveRTStream::Release() {
-    LONG count = InterlockedDecrement((PLONG)&m_cRef);
-    if (count == 0) {
-        delete this;
+    if (IsEqualGUIDAligned(InterfaceId, IID_IUnknown)) {
+        *Interface = PVOID(PUNKNOWN(PMINIPORTWAVERTSTREAM(this)));
+    } else if (IsEqualGUIDAligned(InterfaceId, IID_IMiniportWaveRTStream)) {
+        *Interface = PVOID(PMINIPORTWAVERTSTREAM(this));
+    } else {
+        *Interface = NULL;
+        return STATUS_NO_INTERFACE;
     }
-    return count;
+
+    PUNKNOWN(*Interface)->AddRef();
+    return STATUS_SUCCESS;
 }
