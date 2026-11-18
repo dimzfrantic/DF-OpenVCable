@@ -1,13 +1,15 @@
-# MCVAD - Multi-Cable Virtual Audio Driver
+# DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
-MCVAD adalah driver kernel audio virtual Windows WDM/WaveRT modern standar Windows 10 & 11 yang menggabungkan **5 pasang Virtual Audio Cable independen** ke dalam 1 driver kernel tunggal (`mcvad.sys`).
+**DF-OpenVCable** adalah driver audio virtual kernel-mode tingkat lanjut (WDM/WaveRT) untuk sistem operasi Windows 10 dan Windows 11 (64-bit).
 
-## Daftar Endpoint Audio (5 Pasang Kabel)
-1. **Virtual Cable 1 (Main)**: Render & Capture
-2. **Virtual Cable A**: Render & Capture
-3. **Virtual Cable B**: Render & Capture
-4. **Virtual Cable C**: Render & Capture
-5. **Virtual Cable D**: Render & Capture
+Proyek ini menghadirkan arsitektur **All-in-One Single Driver**: satu file binary kernel (`mcvad.sys`) dan satu file instalasi (`.inf`) yang langsung menyediakan **5 pasang Virtual Audio Cable independen** secara simultan tanpa memecah-mecah driver menjadi beberapa paket terpisah.
+
+## 🎛️ Daftar Endpoint Audio (5 Pasang Kabel Independen)
+1. **DF-OpenVCable 1 (Main)**: Render & Capture
+2. **DF-OpenVCable A**: Render & Capture
+3. **DF-OpenVCable B**: Render & Capture
+4. **DF-OpenVCable C**: Render & Capture
+5. **DF-OpenVCable D**: Render & Capture
 
 Setiap sinyal audio yang diputar ke perangkat Playback/Render secara otomatis dialirkan secara *loss-free* dan *zero-latency* ke perangkat Recording/Capture pada kabel yang bersangkutan melalui memori kernel non-paged pool.
 
@@ -49,5 +51,5 @@ Setiap sinyal audio yang diputar ke perangkat Playback/Render secara otomatis di
 
 ---
 
-## Lisensi & Pengembangan
-Dikembangkan di bawah naungan proyek internal Hermes Agent.
+## 📄 Lisensi
+Open-source under MIT License. Dibuat dan dikembangkan oleh **dimzfrantic**.
