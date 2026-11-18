@@ -1,0 +1,128 @@
+[Version]
+Signature="$WINDOWS NT$"
+Class=MEDIA
+ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
+Provider=%ProviderName%
+DriverVer=11/18/2026,1.0.0.0
+CatalogFile=mcvad.cat
+PnpLockdown=1
+
+[DestinationDirs]
+DefaultDestDir = 13 ; Driver Store Directory
+
+[SourceDisksNames]
+1 = %DiskDescription%,,,
+
+[SourceDisksFiles]
+mcvad.sys = 1
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTamd64,NTarm64
+
+[Standard.NTamd64]
+%DeviceDesc% = MCVAD_Device, ROOT\MCVAD
+
+[Standard.NTarm64]
+%DeviceDesc% = MCVAD_Device, ROOT\MCVAD
+
+[MCVAD_Device.NT]
+Include=ks.inf,wdmaudio.inf
+Needs=KS.Registration,WDMAUDIO.Registration
+CopyFiles=MCVAD_Device.CopyFiles
+AddReg=MCVAD_Device.AddReg
+
+[MCVAD_Device.CopyFiles]
+mcvad.sys
+
+[MCVAD_Device.AddReg]
+HKR,,AssociatedFilters,?",wdmaud,swmidi,redbook"
+HKR,,Driver,,mcvad.sys
+HKR,Drivers,SubClasses,,"wave,midi,mixer"
+HKR,Drivers\wave\wdmaud.drv,Driver,,wdmaud.drv
+HKR,Drivers\midi\wdmaud.drv,Driver,,wdmaud.drv
+HKR,Drivers\mixer\wdmaud.drv,Driver,,wdmaud.drv
+
+[MCVAD_Device.NT.Interfaces]
+; Daftarkan 5 pasang Virtual Audio Interface (Render & Capture)
+; Cable 1 (Main)
+AddInterface=%KSCATEGORY_AUDIO%,"Cable1",MCVAD.Interface.Cable1
+AddInterface=%KSCATEGORY_RENDER%,"Cable1",MCVAD.Interface.Cable1
+AddInterface=%KSCATEGORY_CAPTURE%,"Cable1",MCVAD.Interface.Cable1
+AddInterface=%KSCATEGORY_REALTIME%,"Cable1",MCVAD.Interface.Cable1
+
+; Cable A
+AddInterface=%KSCATEGORY_AUDIO%,"CableA",MCVAD.Interface.CableA
+AddInterface=%KSCATEGORY_RENDER%,"CableA",MCVAD.Interface.CableA
+AddInterface=%KSCATEGORY_CAPTURE%,"CableA",MCVAD.Interface.CableA
+AddInterface=%KSCATEGORY_REALTIME%,"CableA",MCVAD.Interface.CableA
+
+; Cable B
+AddInterface=%KSCATEGORY_AUDIO%,"CableB",MCVAD.Interface.CableB
+AddInterface=%KSCATEGORY_RENDER%,"CableB",MCVAD.Interface.CableB
+AddInterface=%KSCATEGORY_CAPTURE%,"CableB",MCVAD.Interface.CableB
+AddInterface=%KSCATEGORY_REALTIME%,"CableB",MCVAD.Interface.CableB
+
+; Cable C
+AddInterface=%KSCATEGORY_AUDIO%,"CableC",MCVAD.Interface.CableC
+AddInterface=%KSCATEGORY_RENDER%,"CableC",MCVAD.Interface.CableC
+AddInterface=%KSCATEGORY_CAPTURE%,"CableC",MCVAD.Interface.CableC
+AddInterface=%KSCATEGORY_REALTIME%,"CableC",MCVAD.Interface.CableC
+
+; Cable D
+AddInterface=%KSCATEGORY_AUDIO%,"CableD",MCVAD.Interface.CableD
+AddInterface=%KSCATEGORY_RENDER%,"CableD",MCVAD.Interface.CableD
+AddInterface=%KSCATEGORY_CAPTURE%,"CableD",MCVAD.Interface.CableD
+AddInterface=%KSCATEGORY_REALTIME%,"CableD",MCVAD.Interface.CableD
+
+[MCVAD.Interface.Cable1]
+AddReg=MCVAD.Interface.Cable1.AddReg
+[MCVAD.Interface.Cable1.AddReg]
+HKR,,FriendlyName,,%Cable1.Desc%
+
+[MCVAD.Interface.CableA]
+AddReg=MCVAD.Interface.CableA.AddReg
+[MCVAD.Interface.CableA.AddReg]
+HKR,,FriendlyName,,%CableA.Desc%
+
+[MCVAD.Interface.CableB]
+AddReg=MCVAD.Interface.CableB.AddReg
+[MCVAD.Interface.CableB.AddReg]
+HKR,,FriendlyName,,%CableB.Desc%
+
+[MCVAD.Interface.CableC]
+AddReg=MCVAD.Interface.CableC.AddReg
+[MCVAD.Interface.CableC.AddReg]
+HKR,,FriendlyName,,%CableC.Desc%
+
+[MCVAD.Interface.CableD]
+AddReg=MCVAD.Interface.CableD.AddReg
+[MCVAD.Interface.CableD.AddReg]
+HKR,,FriendlyName,,%CableD.Desc%
+
+[MCVAD_Device.NT.Services]
+AddService = mcvad, 0x00000002, MCVAD_Service_Inst
+
+[MCVAD_Service_Inst]
+DisplayName    = %MCVAD.SvcDesc%
+ServiceType    = 1                  ; SERVICE_KERNEL_DRIVER
+StartType      = 3                  ; SERVICE_DEMAND_START
+ErrorControl   = 1                  ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %13%\mcvad.sys
+
+[Strings]
+ProviderName        = "MAI Engineering"
+ManufacturerName    = "MAI Audio Technology"
+DiskDescription     = "Multi-Cable Virtual Audio Driver Disk"
+DeviceDesc          = "Multi-Cable Virtual Audio Adapter"
+MCVAD.SvcDesc       = "Multi-Cable Virtual Audio Service"
+
+Cable1.Desc         = "Virtual Cable 1"
+CableA.Desc         = "Virtual Cable A"
+CableB.Desc         = "Virtual Cable B"
+CableC.Desc         = "Virtual Cable C"
+CableD.Desc         = "Virtual Cable D"
+
+KSCATEGORY_AUDIO    = "{6994AD04-93EF-11D0-A3CC-00A0C9223196}"
+KSCATEGORY_RENDER   = "{65E8773E-8F56-11D0-A3B9-00A0C9223196}"
+KSCATEGORY_CAPTURE  = "{65E8773D-8F56-11D0-A3B9-00A0C9223196}"
+KSCATEGORY_REALTIME = "{EB115FFC-10C8-4964-831D-6DCB02E6F23F}"
