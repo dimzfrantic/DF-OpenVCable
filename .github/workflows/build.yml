@@ -1,0 +1,85 @@
+name: Build MCVAD Kernel Driver & Package
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-driver:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild and WDK Environment
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Driver (Release x64)
+        run: |
+          msbuild package/mcvad.vcxproj /p:Configuration=Release /p:Platform=x64 /v:normal
+
+      - name: Generate Driver Catalog (mcvad.cat) & Test Sign
+        shell: pwsh
+        run: |
+          $KitBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64"
+          if (-not (Test-Path $KitBin)) {
+              $KitBin = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64" -ErrorAction SilentlyContinue | Select-Object -Last 1).FullName
+          }
+          Write-Host "Menggunakan Windows Kit tools dari: $KitBin"
+          
+          # Salin binary mcvad.sys ke folder package
+          Copy-Item package/x64/Release/mcvad.sys package/mcvad.sys -Force
+          
+          # Buat sertifikat code signing lokal untuk CI build
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=MCVAD CI Test Certificate" -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(5)
+          Export-Certificate -Cert $cert -FilePath package/MCVAD_TestCert.cer | Out-Null
+          
+          # Generate catalog via Inf2Cat jika tersedia
+          $Inf2Cat = Join-Path $KitBin "Inf2Cat.exe"
+          if (Test-Path $Inf2Cat) {
+              & $Inf2Cat /driver:package /os:10_X64,Server10_X64
+          }
+          
+          # Sign mcvad.sys dan mcvad.cat via signtool.exe
+          $SignTool = Join-Path $KitBin "signtool.exe"
+          if (Test-Path $SignTool) {
+              & $SignTool sign /v /fd SHA256 /s My /n "MCVAD CI Test Certificate" package/mcvad.sys
+              if (Test-Path package/mcvad.cat) {
+                  & $SignTool sign /v /fd SHA256 /s My /n "MCVAD CI Test Certificate" package/mcvad.cat
+              }
+          }
+          Write-Host "Driver successfully built and signed!"
+
+      - name: Build C++ Native Control Panel
+        shell: cmd
+        run: |
+          cd control_panel
+          call build.bat
+
+      - name: Package Release Bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release/MCVAD-Release-x64 -Force | Out-Null
+          Copy-Item package/mcvad.sys release/MCVAD-Release-x64/ -Force -ErrorAction SilentlyContinue
+          Copy-Item package/mcvad.inf release/MCVAD-Release-x64/ -Force
+          Copy-Item package/mcvad.cat release/MCVAD-Release-x64/ -Force -ErrorAction SilentlyContinue
+          Copy-Item package/MCVAD_TestCert.cer release/MCVAD-Release-x64/ -Force -ErrorAction SilentlyContinue
+          Copy-Item package/install.bat release/MCVAD-Release-x64/ -Force
+          Copy-Item package/uninstall.bat release/MCVAD-Release-x64/ -Force
+          Copy-Item package/create_device.ps1 release/MCVAD-Release-x64/ -Force
+          Copy-Item package/setup_cert.bat release/MCVAD-Release-x64/ -Force
+          Copy-Item control_panel/control_panel.exe release/MCVAD-Release-x64/ -Force -ErrorAction SilentlyContinue
+          Copy-Item control_panel/mcvad_control_panel.py release/MCVAD-Release-x64/ -Force
+          Copy-Item README.md release/MCVAD-Release-x64/ -Force -ErrorAction SilentlyContinue
+          
+          Compress-Archive -Path release/MCVAD-Release-x64/* -DestinationPath release/MCVAD-v1.2.0-x64.zip -Force
+          Write-Host "Release zip package created at release/MCVAD-v1.2.0-x64.zip"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MCVAD-v1.2.0-x64-Package
+          path: release/MCVAD-v1.2.0-x64.zip
