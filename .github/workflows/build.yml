@@ -69,17 +69,22 @@ jobs:
         shell: pwsh
         run: |
           $buildLog = Join-Path $env:RUNNER_TEMP 'msbuild.log'
-          msbuild package\mcvad.vcxproj `
-            /p:Configuration=Release `
-            /p:Platform=x64 `
-            /p:WindowsTargetPlatformVersion=$env:WINDOWS_TARGET_PLATFORM_VERSION `
-            /p:SpectreMitigation=false `
-            /p:SignMode=Off `
-            /p:EnableInf2Cat=false `
-            /p:EnableInfVerif=false `
-            /fl /flp:logfile=$buildLog;verbosity=normal `
-            /v:normal
+          $msbuildArgs = @(
+            "package\mcvad.vcxproj",
+            "/p:Configuration=Release",
+            "/p:Platform=x64",
+            "/p:WindowsTargetPlatformVersion=$env:WINDOWS_TARGET_PLATFORM_VERSION",
+            "/p:SpectreMitigation=false",
+            "/p:SignMode=Off",
+            "/p:EnableInf2Cat=false",
+            "/p:EnableInfVerif=false",
+            "/fl",
+            "/flp:logfile=$buildLog;verbosity=normal",
+            "/v:normal"
+          )
+          & msbuild $msbuildArgs
           $exitCode = $LASTEXITCODE
+          Write-Host "MSBuild exit code: $exitCode"
           if (Test-Path $buildLog) {
             "### MSBuild Compilation Report (Exit Code: $exitCode)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
             "```text" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
