@@ -265,7 +265,7 @@ NTSTATUS CMiniportWaveRTStream::Init(
     m_bCapture = Capture;
 
     ULONG formatSize = sizeof(KSDATAFORMAT_WAVEFORMATEXTENSIBLE);
-    m_pFormat = (PKSDATAFORMAT_WAVEFORMATEXTENSIBLE)ExAllocatePoolWithTag(NonPagedPoolNx, formatSize, MCVAD_POOL_TAG);
+    m_pFormat = (PKSDATAFORMAT_WAVEFORMATEXTENSIBLE)ExAllocatePool2(POOL_FLAG_NON_PAGED, formatSize, MCVAD_POOL_TAG);
     if (!m_pFormat) return STATUS_INSUFFICIENT_RESOURCES;
 
     RtlCopyMemory(m_pFormat, DataFormat, sizeof(KSDATAFORMAT_WAVEFORMATEXTENSIBLE));
@@ -354,7 +354,7 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::AllocateAudioBuffer(
     if (!ppMdl || !pActualSize || !pOffsetFromArm || !pCacheType) return STATUS_INVALID_PARAMETER;
 
     m_DmaBufferSize = (RequestedSize + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-    m_pDmaBuffer = ExAllocatePoolWithTag(NonPagedPoolNx, m_DmaBufferSize, MCVAD_POOL_TAG);
+    m_pDmaBuffer = ExAllocatePool2(POOL_FLAG_NON_PAGED, m_DmaBufferSize, MCVAD_POOL_TAG);
     if (!m_pDmaBuffer) return STATUS_INSUFFICIENT_RESOURCES;
 
     m_pDmaMdl = IoAllocateMdl(m_pDmaBuffer, m_DmaBufferSize, FALSE, FALSE, NULL);

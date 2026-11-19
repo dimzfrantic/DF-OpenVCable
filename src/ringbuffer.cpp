@@ -24,7 +24,7 @@ NTSTATUS CCircularRingBuffer::Initialize(ULONG bufferSizeBytes) {
     }
 
     // Alokasi memori di NonPagedPoolNx (Non-Paged Pool No-Execute) sesuai standar Windows 10/11
-    m_pBuffer = (PUCHAR)ExAllocatePoolWithTag(NonPagedPoolNx, bufferSizeBytes, MCVAD_POOL_TAG);
+    m_pBuffer = (PUCHAR)ExAllocatePool2(POOL_FLAG_NON_PAGED, bufferSizeBytes, MCVAD_POOL_TAG);
     if (!m_pBuffer) {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -79,7 +79,7 @@ VOID CCircularRingBuffer::ResetStats() {
 NTSTATUS CCircularRingBuffer::Resize(ULONG newBufferSizeBytes) {
     if (newBufferSizeBytes == 0) return STATUS_INVALID_PARAMETER;
 
-    PUCHAR pNewBuffer = (PUCHAR)ExAllocatePoolWithTag(NonPagedPoolNx, newBufferSizeBytes, MCVAD_POOL_TAG);
+    PUCHAR pNewBuffer = (PUCHAR)ExAllocatePool2(POOL_FLAG_NON_PAGED, newBufferSizeBytes, MCVAD_POOL_TAG);
     if (!pNewBuffer) return STATUS_INSUFFICIENT_RESOURCES;
 
     RtlZeroMemory(pNewBuffer, newBufferSizeBytes);
