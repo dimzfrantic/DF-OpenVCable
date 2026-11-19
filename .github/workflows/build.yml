@@ -10,9 +10,13 @@ on:
 jobs:
   build-driver:
     runs-on: windows-2022
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup MSVC Developer Environment
         uses: ilammy/msvc-dev-cmd@v1
@@ -76,11 +80,19 @@ jobs:
           # Tampilkan seluruh output ke console runner
           $rawOutput | ForEach-Object { Write-Host $_ }
 
-          # Render ke GITHUB_STEP_SUMMARY (publik & tanpa login)
-          "### MSBuild Driver Compilation Output (Exit Code: $exitCode)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-          "```text" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-          $rawOutput | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-          "```" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          # Simpan log ke file dan push ke branch ci-log
+          try {
+            $rawOutput | Out-File -FilePath "build_log.txt" -Encoding utf8
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git checkout -B ci-log
+            git add -f build_log.txt
+            git commit -m "Auto-commit build log [skip ci]"
+            git push origin ci-log --force
+            Write-Host "Successfully pushed build_log.txt to branch ci-log"
+          } catch {
+            Write-Warning "Could not push to branch ci-log: $_"
+          }
 
           if ($exitCode -ne 0) {
             throw "MSBuild driver compilation failed with exit code $exitCode"
