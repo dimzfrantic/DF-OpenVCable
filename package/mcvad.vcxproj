@@ -66,7 +66,10 @@
     <ClInclude Include="..\src\mcvad_ioctl.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <!-- Disable MASM assembler target since DF-OpenVCable is pure C++ -->
+  <!-- Disable MASM assembler targets since DF-OpenVCable is pure C++ -->
   <Target Name="MASM" />
   <Target Name="_MASM" />
+  <Target Name="Masm" />
+  <Target Name="_Masm" />
+  <Target Name="Assemble" />
 </Project>

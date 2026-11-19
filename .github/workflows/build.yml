@@ -62,40 +62,26 @@ jobs:
           if (-not $best) { throw "Windows 10/11 SDK tidak ditemukan di $includeRoot" }
           $sdkVersion = $best.Name
           Write-Host "Menggunakan SDK Version: $sdkVersion"
-          "WINDOWS_SDK_DIR=$kitsRoot\" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WINDOWS_SDK_DIR=$kitsRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "WINDOWS_TARGET_PLATFORM_VERSION=$sdkVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build Driver (Release x64)
         shell: pwsh
         run: |
-          $buildLog = Join-Path $env:RUNNER_TEMP 'msbuild.log'
-          $msbuildArgs = @(
-            "package\mcvad.vcxproj",
-            "/p:Configuration=Release",
-            "/p:Platform=x64",
-            "/p:WindowsTargetPlatformVersion=$env:WINDOWS_TARGET_PLATFORM_VERSION",
-            "/p:SpectreMitigation=false",
-            "/p:SignMode=Off",
-            "/p:EnableInf2Cat=false",
-            "/p:EnableInfVerif=false",
-            "/fl",
-            "/flp:logfile=$buildLog;verbosity=normal",
-            "/v:normal"
-          )
-          & msbuild $msbuildArgs
+          Write-Host "=== Starting MSBuild Driver Build ==="
+          $rawOutput = msbuild package\mcvad.vcxproj /p:Configuration=Release /p:Platform=x64 /p:SpectreMitigation=false /p:SignMode=Off /p:EnableInf2Cat=false /p:EnableInfVerif=false /v:normal 2>&1
           $exitCode = $LASTEXITCODE
-          Write-Host "MSBuild exit code: $exitCode"
-          if (Test-Path $buildLog) {
-            "### MSBuild Compilation Report (Exit Code: $exitCode)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-            "```text" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-            $errs = Get-Content $buildLog | Select-String -Pattern "error " -Context 2, 5
-            if ($errs) {
-              $errs | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-            } else {
-              Get-Content $buildLog -Tail 100 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-            }
-            "```" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-          }
+          Write-Host "MSBuild finished with exit code: $exitCode"
+
+          # Tampilkan seluruh output ke console runner
+          $rawOutput | ForEach-Object { Write-Host $_ }
+
+          # Render ke GITHUB_STEP_SUMMARY (publik & tanpa login)
+          "### MSBuild Driver Compilation Output (Exit Code: $exitCode)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          "```text" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          $rawOutput | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          "```" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
           if ($exitCode -ne 0) {
             throw "MSBuild driver compilation failed with exit code $exitCode"
           }
