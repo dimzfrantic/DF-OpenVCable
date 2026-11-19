@@ -35,6 +35,9 @@
     <DriverTargetPlatform>Universal</DriverTargetPlatform>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <SignMode>Off</SignMode>
+    <SpectreMitigation>false</SpectreMitigation>
+    <EnableInf2Cat>false</EnableInf2Cat>
+    <EnableInfVerif>false</EnableInfVerif>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>

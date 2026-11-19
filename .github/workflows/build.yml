@@ -72,8 +72,20 @@ jobs:
             /p:Configuration=Release `
             /p:Platform=x64 `
             /p:WindowsTargetPlatformVersion=$env:WINDOWS_TARGET_PLATFORM_VERSION `
+            /p:SpectreMitigation=false `
+            /p:SignMode=Off `
+            /p:EnableInf2Cat=false `
             /p:EnableInfVerif=false `
+            /fl /flp:logfile=msbuild.log;verbosity=normal `
             /v:normal
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::MSBuild driver compilation failed with exit code $LASTEXITCODE"
+            if (Test-Path msbuild.log) {
+              Write-Host "=== MSBUILD FAILURE DIAGNOSTICS ==="
+              Get-Content msbuild.log | Select-String -Pattern "error " -Context 2, 5
+            }
+            exit 1
+          }
 
       - name: Generate Driver Catalog (mcvad.cat) & Test Sign
         shell: pwsh

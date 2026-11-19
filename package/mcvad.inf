@@ -35,7 +35,7 @@ AddReg=MCVAD_Device.AddReg
 mcvad.sys
 
 [MCVAD_Device.AddReg]
-HKR,,AssociatedFilters,?",wdmaud,swmidi,redbook"
+HKR,,AssociatedFilters,,"wdmaud,swmidi,redbook"
 HKR,,Driver,,mcvad.sys
 HKR,Drivers,SubClasses,,"wave,midi,mixer"
 HKR,Drivers\wave\wdmaud.drv,Driver,,wdmaud.drv
