@@ -238,8 +238,16 @@ jobs:
           Copy-Item control_panel/mcvad_control_panel.py $pkg/ -Force
           Copy-Item README.md $pkg/ -Force -ErrorAction SilentlyContinue
 
+          # Sertakan harness validasi & panduan agar paket bisa dipakai mandiri
+          New-Item -ItemType Directory -Path "$pkg/tests" -Force | Out-Null
+          New-Item -ItemType Directory -Path "$pkg/docs" -Force | Out-Null
+          Copy-Item tests/mcvad_selftest.ps1 $pkg/tests/ -Force
+          Copy-Item tests/audio_loopback.ps1 $pkg/tests/ -Force
+          Copy-Item docs/VALIDATION.md $pkg/docs/ -Force
+
           # Verifikasi isi paket sebelum dikemas (fail-fast jika artefak utama hilang)
-          $required = @("mcvad.sys", "mcvad.inf", "mcvad.cat", "control_panel.exe", "MCVAD_TestCert.cer")
+          $required = @("mcvad.sys", "mcvad.inf", "mcvad.cat", "control_panel.exe", "MCVAD_TestCert.cer",
+                        "tests/mcvad_selftest.ps1", "tests/audio_loopback.ps1", "docs/VALIDATION.md")
           foreach ($f in $required) {
               if (-not (Test-Path (Join-Path $pkg $f))) {
                   throw "Paket tidak lengkap: '$f' tidak ditemukan di $pkg"
