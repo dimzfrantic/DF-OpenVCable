@@ -1,3 +1,5 @@
+#define PUT_GUIDS_HERE
+#include <initguid.h>
 #include "driver.h"
 #include "ringbuffer.h"
 #include "minwavert.h"
