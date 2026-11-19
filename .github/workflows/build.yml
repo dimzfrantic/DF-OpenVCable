@@ -131,10 +131,17 @@ jobs:
           Write-Host "Driver successfully built and signed!"
 
       - name: Build C++ Native Control Panel
-        shell: cmd
+        shell: pwsh
         run: |
-          cd control_panel
-          call build.bat --ci
+          Set-Location control_panel
+          & cl.exe /nologo /O2 /EHsc /W3 /D_UNICODE /DUNICODE control_panel.cpp /Fe:control_panel.exe /link user32.lib gdi32.lib comctl32.lib /SUBSYSTEM:WINDOWS
+          if ($LASTEXITCODE -ne 0) {
+              throw "Control Panel compilation failed with exit code $LASTEXITCODE"
+          }
+          if (-not (Test-Path "control_panel.exe")) {
+              throw "control_panel.exe was not created!"
+          }
+          Write-Host "Control panel successfully built: control_panel.exe"
 
       - name: Package Release Bundle
         shell: pwsh
