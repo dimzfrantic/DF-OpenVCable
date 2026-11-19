@@ -1,9 +1,6 @@
 #pragma once
 
-#ifdef _KERNEL_MODE
-#include <ntddk.h>
-#include <windef.h>
-#else
+#ifndef _KERNEL_MODE
 #include <windows.h>
 #include <winioctl.h>
 #endif

@@ -1,12 +1,8 @@
 #pragma once
 
-#include <ntddk.h>
-#define NOBITMAP
-#include <mmreg.h>
-#include <ks.h>
-#include <ksmedia.h>
 #include <portcls.h>
 #include <stdunk.h>
+#include <ksdebug.h>
 #include <ntstrsafe.h>
 
 #define MCVAD_POOL_TAG 'DAVM' // Pool tag: MVAD
