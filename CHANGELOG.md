@@ -2,6 +2,11 @@
 
 ## [1.0.0] - 2026-11-19
 ### Added
+- **Harness validasi (`tests/`)**:
+  - `tests/mcvad_selftest.ps1` — 11 pemeriksaan read-only (Test Signing, Secure Boot, sertifikat, DriverStore, service, devnode, driver running, endpoint, bugcheck 24 jam) dengan exit code = jumlah FAIL dan mode `-Json`.
+  - `tests/audio_loopback.ps1` — uji fungsional audio via WinMM P/Invoke: `-List`, `-Probe`, `-Test`. Memainkan tone 1 kHz ke endpoint playback lalu merekam dari endpoint recording kabel yang sama, menghitung RMS dan magnitudo Goertzel.
+  - `docs/VALIDATION.md` — prosedur 12 bagian dengan bukti yang diharapkan per langkah dan tabel interpretasi ProblemCode.
+- **CI: lint PowerShell** — setiap `.ps1` di `tests/` dan `package/` di-parse dengan `System.Management.Automation.Language.Parser`; syntax error menggagalkan build.
 - **CI/CD Pipeline Hijau (GitHub Actions `windows-2022`)**: Build driver kernel `mcvad.sys` (x64 Release) berhasil 0 error, dilanjutkan pembuatan katalog `mcvad.cat` via Inf2Cat (signability test: 0 error, 0 warning), test-signing `mcvad.sys` + `mcvad.cat` via signtool SHA256, kompilasi `control_panel.exe`, dan packaging zip.
 - **Rolling GitHub Release**: Setiap push ke `main` otomatis mempublikasikan ulang rilis `latest-build` sehingga paket dapat diunduh tanpa login:
   `https://github.com/dimzfrantic/DF-OpenVCable/releases/download/latest-build/DF-OpenVCable-v1.0.0-x64.zip`

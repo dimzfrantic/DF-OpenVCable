@@ -52,6 +52,18 @@ Isi paket: `mcvad.sys`, `mcvad.inf`, `mcvad.cat` (test-signed), `MCVAD_TestCert.
 - Versi Python: Jalankan `python control_panel/mcvad_control_panel.py`.
 - Versi Native C++: Jalankan `control_panel/control_panel.exe`.
 
+### Verifikasi Instalasi & Uji Audio:
+Panduan bertahap lengkap (prasyarat, instalasi, uji tone loopback, troubleshooting BSOD):
+**`docs/VALIDATION.md`**
+
+```powershell
+# Cek status instalasi & prasyarat
+powershell -ExecutionPolicy Bypass -File tests\mcvad_selftest.ps1
+
+# Uji apakah audio benar-benar mengalir (tone 1 kHz playback -> recording)
+powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern "DF-OpenVCable 1"
+```
+
 ### Pencabutan / Uninstall Bersih:
 - Klik kanan `package/uninstall.bat` -> pilih **Run as Administrator**.
 

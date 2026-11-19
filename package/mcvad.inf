@@ -3,7 +3,7 @@ Signature="$WINDOWS NT$"
 Class=MEDIA
 ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
 Provider=%ProviderName%
-DriverVer=11/18/2026,1.0.0.0
+DriverVer=11/19/2026,1.0.0.0
 CatalogFile=mcvad.cat
 PnpLockdown=1
 
@@ -110,17 +110,17 @@ ErrorControl   = 1                  ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %13%\mcvad.sys
 
 [Strings]
-ProviderName        = "MAI Engineering"
-ManufacturerName    = "MAI Audio Technology"
-DiskDescription     = "Multi-Cable Virtual Audio Driver Disk"
-DeviceDesc          = "Multi-Cable Virtual Audio Adapter"
-MCVAD.SvcDesc       = "Multi-Cable Virtual Audio Service"
+ProviderName        = "dimzfrantic"
+ManufacturerName    = "DF-OpenVCable Project"
+DiskDescription     = "DF-OpenVCable Driver Disk"
+DeviceDesc          = "DF-OpenVCable Virtual Audio Adapter"
+MCVAD.SvcDesc       = "DF-OpenVCable Virtual Audio Service"
 
-Cable1.Desc         = "Virtual Cable 1"
-CableA.Desc         = "Virtual Cable A"
-CableB.Desc         = "Virtual Cable B"
-CableC.Desc         = "Virtual Cable C"
-CableD.Desc         = "Virtual Cable D"
+Cable1.Desc         = "DF-OpenVCable 1 (Main)"
+CableA.Desc         = "DF-OpenVCable A"
+CableB.Desc         = "DF-OpenVCable B"
+CableC.Desc         = "DF-OpenVCable C"
+CableD.Desc         = "DF-OpenVCable D"
 
 KSCATEGORY_AUDIO    = "{6994AD04-93EF-11D0-A3CC-00A0C9223196}"
 KSCATEGORY_RENDER   = "{65E8773E-8F56-11D0-A3B9-00A0C9223196}"
