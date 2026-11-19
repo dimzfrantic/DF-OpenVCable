@@ -227,12 +227,17 @@ if ($bugcheck) {
 }
 
 # ------------------------------------------------------ 10. Status driver build
-$sysLocal = Join-Path $PSScriptRoot '..\package\mcvad.sys'
-if (Test-Path $sysLocal) {
+$sysCandidates = @(
+    (Join-Path $PSScriptRoot '..\package\mcvad.sys'),   # layout repo
+    (Join-Path $PSScriptRoot '..\mcvad.sys')            # layout paket ZIP
+)
+$sysLocal = $sysCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($sysLocal) {
     $fi = Get-Item $sysLocal
-    Add-Result 'Binary mcvad.sys lokal' 'INFO' "$($fi.Length) bytes, $($fi.LastWriteTime)"
+    $hash = (Get-FileHash $sysLocal -Algorithm SHA256).Hash
+    Add-Result 'Binary mcvad.sys lokal' 'INFO' "$($fi.Length) bytes, SHA256 $($hash.Substring(0,16))..."
 } else {
-    Add-Result 'Binary mcvad.sys lokal' 'INFO' 'Tidak ada di package\ (normal bila hanya memakai paket release)'
+    Add-Result 'Binary mcvad.sys lokal' 'INFO' 'Tidak ditemukan di package\ maupun folder paket'
 }
 
 # --------------------------------------------------------------------- Ringkas
