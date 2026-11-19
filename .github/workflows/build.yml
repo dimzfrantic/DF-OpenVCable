@@ -121,6 +121,20 @@ jobs:
           Log "Inf2Cat.exe  : $(if ($Inf2Cat) { $Inf2Cat } else { 'TIDAK DITEMUKAN' })"
           Log "signtool.exe : $(if ($SignTool) { $SignTool } else { 'TIDAK DITEMUKAN' })"
 
+          if (-not $Inf2Cat) {
+              Log "=== Inventaris Windows Kits\10\bin ==="
+              Get-ChildItem $binRoot -Directory -ErrorAction SilentlyContinue |
+                  ForEach-Object { Log ("  bin\" + $_.Name + "  -> " + ((Get-ChildItem $_.FullName -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name) -join ', ')) }
+              Log "=== Pencarian global inf2cat* ==="
+              foreach ($root in @("C:\Program Files (x86)\Windows Kits", "C:\Program Files\Windows Kits", "C:\Program Files (x86)\Windows Kits\10\Tools")) {
+                  if (Test-Path $root) {
+                      $hits = Get-ChildItem $root -Filter "inf2cat*" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 10
+                      if ($hits) { $hits | ForEach-Object { Log ("  HIT: " + $_.FullName) } }
+                      else { Log ("  tidak ada di " + $root) }
+                  }
+              }
+          }
+
           # Salin binary mcvad.sys ke folder package
           Copy-Item package/x64/Release/mcvad.sys package/mcvad.sys -Force
           Log ("mcvad.sys size: " + (Get-Item package/mcvad.sys).Length + " bytes")
