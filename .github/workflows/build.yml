@@ -104,11 +104,22 @@ jobs:
           $diag = New-Object System.Collections.Generic.List[string]
           function Log([string]$m) { $diag.Add($m); Write-Host $m }
 
-          $KitBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64"
-          if (-not (Test-Path $KitBin)) {
-              $KitBin = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64" -ErrorAction SilentlyContinue | Select-Object -Last 1).FullName
+          # Cari tool WDK/SDK secara dinamis: Inf2Cat & signtool bisa berada di
+          # versi kit yang berbeda-beda tergantung WDK yang terpasang.
+          $binRoot = "C:\Program Files (x86)\Windows Kits\10\bin"
+          function Find-KitTool([string]$name) {
+              $c = Get-ChildItem -Path $binRoot -Filter $name -Recurse -ErrorAction SilentlyContinue |
+                   Where-Object { $_.FullName -match '\\x64\\' } |
+                   Sort-Object -Property FullName -Descending |
+                   Select-Object -First 1
+              if ($c) { return $c.FullName }
+              return $null
           }
-          Log "Menggunakan Windows Kit tools dari: $KitBin"
+
+          $Inf2Cat  = Find-KitTool "Inf2Cat.exe"
+          $SignTool = Find-KitTool "signtool.exe"
+          Log "Inf2Cat.exe  : $(if ($Inf2Cat) { $Inf2Cat } else { 'TIDAK DITEMUKAN' })"
+          Log "signtool.exe : $(if ($SignTool) { $SignTool } else { 'TIDAK DITEMUKAN' })"
 
           # Salin binary mcvad.sys ke folder package
           Copy-Item package/x64/Release/mcvad.sys package/mcvad.sys -Force
@@ -120,14 +131,13 @@ jobs:
           Log "Sertifikat test signing dibuat: $($cert.Thumbprint)"
 
           # Generate catalog via Inf2Cat
-          $Inf2Cat = Join-Path $KitBin "Inf2Cat.exe"
-          if (Test-Path $Inf2Cat) {
+          if ($Inf2Cat) {
               Log "=== Inf2Cat output ==="
               $inf2catOut = & $Inf2Cat /driver:package /os:10_X64,Server10_X64 2>&1 | Out-String
               Log $inf2catOut
               Log "Inf2Cat exit code: $LASTEXITCODE"
           } else {
-              Log "Inf2Cat.exe TIDAK DITEMUKAN di $KitBin"
+              Log "PERINGATAN: Inf2Cat.exe tidak ditemukan di seluruh $binRoot"
           }
 
           if (Test-Path package/mcvad.cat) {
@@ -137,8 +147,7 @@ jobs:
           }
 
           # Sign mcvad.sys dan mcvad.cat via signtool.exe
-          $SignTool = Join-Path $KitBin "signtool.exe"
-          if (Test-Path $SignTool) {
+          if ($SignTool) {
               Log "=== signtool mcvad.sys ==="
               Log (& $SignTool sign /v /fd SHA256 /s My /n "MCVAD CI Test Certificate" package/mcvad.sys 2>&1 | Out-String)
               Log "signtool sys exit code: $LASTEXITCODE"
@@ -148,7 +157,7 @@ jobs:
                   Log "signtool cat exit code: $LASTEXITCODE"
               }
           } else {
-              Log "signtool.exe TIDAK DITEMUKAN di $KitBin"
+              Log "PERINGATAN: signtool.exe tidak ditemukan di seluruh $binRoot"
           }
 
           # Publikasikan diagnostik ke branch ci-log (channel log yang sudah terbukti)
