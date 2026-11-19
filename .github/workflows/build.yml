@@ -104,16 +104,17 @@ jobs:
           $diag = New-Object System.Collections.Generic.List[string]
           function Log([string]$m) { $diag.Add($m); Write-Host $m }
 
-          # Cari tool WDK/SDK secara dinamis: Inf2Cat & signtool bisa berada di
-          # versi kit yang berbeda-beda tergantung WDK yang terpasang.
+          # Cari tool WDK/SDK secara dinamis. Catatan penting: Inf2Cat.exe hanya
+          # disediakan dalam varian x86 (managed tool), bukan x64, jadi pencarian
+          # tidak boleh difilter ke folder x64.
           $binRoot = "C:\Program Files (x86)\Windows Kits\10\bin"
           function Find-KitTool([string]$name) {
-              $c = Get-ChildItem -Path $binRoot -Filter $name -Recurse -ErrorAction SilentlyContinue |
-                   Where-Object { $_.FullName -match '\\x64\\' } |
-                   Sort-Object -Property FullName -Descending |
-                   Select-Object -First 1
-              if ($c) { return $c.FullName }
-              return $null
+              $all = Get-ChildItem -Path $binRoot -Filter $name -Recurse -ErrorAction SilentlyContinue
+              if (-not $all) { return $null }
+              $ranked = $all | Sort-Object -Property `
+                  @{ Expression = { if ($_.FullName -match '\\bin\\(\d+\.\d+\.\d+\.\d+)\\') { [version]$matches[1] } else { [version]'0.0.0.0' } }; Descending = $true }, `
+                  @{ Expression = { if ($_.FullName -match '\\x64\\') { 0 } else { 1 } } }
+              return ($ranked | Select-Object -First 1).FullName
           }
 
           $Inf2Cat  = Find-KitTool "Inf2Cat.exe"
