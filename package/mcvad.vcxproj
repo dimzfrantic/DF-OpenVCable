@@ -32,7 +32,7 @@
     <UseDebugLibraries Condition="'$(Configuration)'=='Release'">false</UseDebugLibraries>
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>WDM</DriverType>
-    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <SignMode>Off</SignMode>
     <SpectreMitigation>false</SpectreMitigation>
@@ -52,7 +52,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Inf Include="mcvad.inf" />
+    <None Include="mcvad.inf" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\adapter.cpp" />
