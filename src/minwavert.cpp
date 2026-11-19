@@ -15,7 +15,7 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRT::NonDelegatingQueryInterface(REFIID Inte
         *Interface = PVOID(PMINIPORTWAVERT(this));
     } else {
         *Interface = NULL;
-        return STATUS_NO_INTERFACE;
+        return STATUS_INVALID_PARAMETER;
     }
 
     PUNKNOWN(*Interface)->AddRef();
@@ -237,7 +237,7 @@ CMiniportWaveRTStream::CMiniportWaveRTStream(PUNKNOWN pUnknownOuter) :
     m_LinearPosition(0)
 {
     m_StartTime.QuadPart = 0;
-    m_Frequency = KeQueryPerformanceFrequency(NULL);
+    KeQueryPerformanceCounter(&m_Frequency);
 }
 
 CMiniportWaveRTStream::~CMiniportWaveRTStream() {
@@ -283,8 +283,13 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::SetState(KSSTATE State) {
     return STATUS_SUCCESS;
 }
 
-STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPosition(KSRTAUDIO_GETPOSITION_INFO* pPositionInfo) {
-    if (!pPositionInfo || m_DmaBufferSize == 0) return STATUS_INVALID_PARAMETER;
+STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::SetFormat(PKSDATAFORMAT DataFormat) {
+    UNREFERENCED_PARAMETER(DataFormat);
+    return STATUS_SUCCESS;
+}
+
+STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPosition(KSAUDIO_POSITION* pPosition) {
+    if (!pPosition || m_DmaBufferSize == 0) return STATUS_INVALID_PARAMETER;
 
     LARGE_INTEGER now, elapsed;
     now = KeQueryPerformanceCounter(NULL);
@@ -300,9 +305,8 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPosition(KSRTAUDIO_GETPOSITION
 
     ULONGLONG totalBytesStreamed = (elapsed.QuadPart * bytesPerSec) / m_Frequency.QuadPart;
 
-    pPositionInfo->ActualPosition = (ULONG)(totalBytesStreamed % m_DmaBufferSize);
-    pPositionInfo->LinearPosition = totalBytesStreamed;
-    pPositionInfo->PerformanceCounterPosition = now.QuadPart;
+    pPosition->PlayOffset = totalBytesStreamed;
+    pPosition->WriteOffset = totalBytesStreamed;
 
     // Loopback transfer berdasar delta bytes aktual sejak pembacaan sebelumnya
     // Mencegah glitch, duplikasi data, dan clock drift
@@ -382,12 +386,14 @@ STDMETHODIMP_(VOID) CMiniportWaveRTStream::FreeAudioBuffer(PMDL pMdl, ULONG Size
     }
 }
 
-STDMETHODIMP_(VOID) CMiniportWaveRTStream::GetClockRegister(KSRTAUDIO_HWREGISTER* pRegister) {
-    if (pRegister) RtlZeroMemory(pRegister, sizeof(KSRTAUDIO_HWREGISTER));
+STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetClockRegister(KSRTAUDIO_HWREGISTER* pRegister) {
+    UNREFERENCED_PARAMETER(pRegister);
+    return STATUS_NOT_IMPLEMENTED;
 }
 
-STDMETHODIMP_(VOID) CMiniportWaveRTStream::GetPositionRegister(KSRTAUDIO_HWREGISTER* pRegister) {
-    if (pRegister) RtlZeroMemory(pRegister, sizeof(KSRTAUDIO_HWREGISTER));
+STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPositionRegister(KSRTAUDIO_HWREGISTER* pRegister) {
+    UNREFERENCED_PARAMETER(pRegister);
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 STDMETHODIMP_(VOID) CMiniportWaveRTStream::GetHWLatency(KSRTAUDIO_HWLATENCY* pLatency) {
@@ -396,17 +402,6 @@ STDMETHODIMP_(VOID) CMiniportWaveRTStream::GetHWLatency(KSRTAUDIO_HWLATENCY* pLa
         pLatency->ChipsetDelay = 0;
         pLatency->CodecDelay = 0;
     }
-}
-
-STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::AllocatePagesForMdl(PHYSICAL_ADDRESS HighAddress, SIZE_T TotalBytes, PMDL* pPhysicalPagesMdl) {
-    UNREFERENCED_PARAMETER(HighAddress);
-    UNREFERENCED_PARAMETER(TotalBytes);
-    UNREFERENCED_PARAMETER(pPhysicalPagesMdl);
-    return STATUS_NOT_IMPLEMENTED;
-}
-
-STDMETHODIMP_(VOID) CMiniportWaveRTStream::FreePagesFromMdl(PMDL PhysicalPagesMdl) {
-    UNREFERENCED_PARAMETER(PhysicalPagesMdl);
 }
 
 // IUnknown implementation untuk stream
@@ -419,7 +414,7 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::NonDelegatingQueryInterface(REFII
         *Interface = PVOID(PMINIPORTWAVERTSTREAM(this));
     } else {
         *Interface = NULL;
-        return STATUS_NO_INTERFACE;
+        return STATUS_INVALID_PARAMETER;
     }
 
     PUNKNOWN(*Interface)->AddRef();

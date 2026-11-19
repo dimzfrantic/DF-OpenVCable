@@ -11,7 +11,7 @@ CCircularRingBuffer::CCircularRingBuffer() :
 {
     KeInitializeSpinLock(&m_Lock);
     m_LastWriteTime.QuadPart = 0;
-    m_PerfFrequency = KeQueryPerformanceFrequency(NULL);
+    KeQueryPerformanceCounter(&m_PerfFrequency);
 }
 
 CCircularRingBuffer::~CCircularRingBuffer() {

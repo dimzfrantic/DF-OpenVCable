@@ -45,14 +45,13 @@ public:
 
     // IMiniportWaveRTStream methods
     STDMETHODIMP_(NTSTATUS) SetState(KSSTATE State);
-    STDMETHODIMP_(NTSTATUS) GetPosition(KSRTAUDIO_GETPOSITION_INFO* pPositionInfo);
+    STDMETHODIMP_(NTSTATUS) SetFormat(PKSDATAFORMAT DataFormat);
+    STDMETHODIMP_(NTSTATUS) GetPosition(KSAUDIO_POSITION* pPosition);
     STDMETHODIMP_(NTSTATUS) AllocateAudioBuffer(ULONG RequestedSize, PMDL* ppMdl, ULONG* pActualSize, ULONG* pOffsetFromArm, MEMORY_CACHING_TYPE* pCacheType);
     STDMETHODIMP_(VOID)     FreeAudioBuffer(PMDL pMdl, ULONG Size);
-    STDMETHODIMP_(VOID)     GetClockRegister(KSRTAUDIO_HWREGISTER* pRegister);
-    STDMETHODIMP_(VOID)     GetPositionRegister(KSRTAUDIO_HWREGISTER* pRegister);
+    STDMETHODIMP_(NTSTATUS) GetClockRegister(KSRTAUDIO_HWREGISTER* pRegister);
+    STDMETHODIMP_(NTSTATUS) GetPositionRegister(KSRTAUDIO_HWREGISTER* pRegister);
     STDMETHODIMP_(VOID)     GetHWLatency(KSRTAUDIO_HWLATENCY* pLatency);
-    STDMETHODIMP_(NTSTATUS) AllocatePagesForMdl(PHYSICAL_ADDRESS HighAddress, SIZE_T TotalBytes, PMDL* pPhysicalPagesMdl);
-    STDMETHODIMP_(VOID)     FreePagesFromMdl(PMDL PhysicalPagesMdl);
 };
 
 //=====================================================================

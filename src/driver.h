@@ -11,19 +11,6 @@
 #define SIZEOF_ARRAY(a) (sizeof(a)/sizeof((a)[0]))
 #endif
 
-// Kernel C++ memory allocation operators
-inline void* __cdecl operator new(size_t size, POOL_TYPE poolType, ULONG tag) {
-    return ExAllocatePoolWithTag(poolType, size, tag);
-}
-inline void __cdecl operator delete(void* p) {
-    if (p) ExFreePool(p);
-}
-inline void __cdecl operator delete(void* p, size_t) {
-    if (p) ExFreePool(p);
-}
-inline void __cdecl operator delete(void* p, POOL_TYPE, ULONG) {
-    if (p) ExFreePool(p);
-}
 
 // Maksimum jumlah pasang Virtual Audio Cable yang didukung dalam 1 driver
 #define MAX_CABLES 5

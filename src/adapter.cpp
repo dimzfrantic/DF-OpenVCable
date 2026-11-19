@@ -235,7 +235,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
             status = pPort->Init(DeviceObject, Irp, pMiniport, NULL, ResourceList);
             if (NT_SUCCESS(status)) {
                 // 4. Daftarkan Subdevice ke Windows Audio Stack
-                status = PcRegisterSubdevice(DeviceObject, g_Cables[i].SubdeviceName, pPort);
+                status = PcRegisterSubdevice(DeviceObject, (PWSTR)g_Cables[i].SubdeviceName, pPort);
                 if (NT_SUCCESS(status)) {
                     KdPrint(("[MCVAD] Subdevice terdaftar: %ws\n", g_Cables[i].SubdeviceName));
                 }
