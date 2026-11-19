@@ -101,34 +101,69 @@ jobs:
       - name: Generate Driver Catalog (mcvad.cat) & Test Sign
         shell: pwsh
         run: |
+          $diag = New-Object System.Collections.Generic.List[string]
+          function Log([string]$m) { $diag.Add($m); Write-Host $m }
+
           $KitBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64"
           if (-not (Test-Path $KitBin)) {
               $KitBin = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64" -ErrorAction SilentlyContinue | Select-Object -Last 1).FullName
           }
-          Write-Host "Menggunakan Windows Kit tools dari: $KitBin"
-          
+          Log "Menggunakan Windows Kit tools dari: $KitBin"
+
           # Salin binary mcvad.sys ke folder package
           Copy-Item package/x64/Release/mcvad.sys package/mcvad.sys -Force
-          
+          Log ("mcvad.sys size: " + (Get-Item package/mcvad.sys).Length + " bytes")
+
           # Buat sertifikat code signing lokal untuk CI build
           $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=MCVAD CI Test Certificate" -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(5)
           Export-Certificate -Cert $cert -FilePath package/MCVAD_TestCert.cer | Out-Null
-          
-          # Generate catalog via Inf2Cat jika tersedia
+          Log "Sertifikat test signing dibuat: $($cert.Thumbprint)"
+
+          # Generate catalog via Inf2Cat
           $Inf2Cat = Join-Path $KitBin "Inf2Cat.exe"
           if (Test-Path $Inf2Cat) {
-              & $Inf2Cat /driver:package /os:10_X64,Server10_X64
+              Log "=== Inf2Cat output ==="
+              $inf2catOut = & $Inf2Cat /driver:package /os:10_X64,Server10_X64 2>&1 | Out-String
+              Log $inf2catOut
+              Log "Inf2Cat exit code: $LASTEXITCODE"
+          } else {
+              Log "Inf2Cat.exe TIDAK DITEMUKAN di $KitBin"
           }
-          
+
+          if (Test-Path package/mcvad.cat) {
+              Log ("mcvad.cat berhasil dibuat: " + (Get-Item package/mcvad.cat).Length + " bytes")
+          } else {
+              Log "PERINGATAN: package/mcvad.cat TIDAK ADA setelah Inf2Cat."
+          }
+
           # Sign mcvad.sys dan mcvad.cat via signtool.exe
           $SignTool = Join-Path $KitBin "signtool.exe"
           if (Test-Path $SignTool) {
-              & $SignTool sign /v /fd SHA256 /s My /n "MCVAD CI Test Certificate" package/mcvad.sys
+              Log "=== signtool mcvad.sys ==="
+              Log (& $SignTool sign /v /fd SHA256 /s My /n "MCVAD CI Test Certificate" package/mcvad.sys 2>&1 | Out-String)
+              Log "signtool sys exit code: $LASTEXITCODE"
               if (Test-Path package/mcvad.cat) {
-                  & $SignTool sign /v /fd SHA256 /s My /n "MCVAD CI Test Certificate" package/mcvad.cat
+                  Log "=== signtool mcvad.cat ==="
+                  Log (& $SignTool sign /v /fd SHA256 /s My /n "MCVAD CI Test Certificate" package/mcvad.cat 2>&1 | Out-String)
+                  Log "signtool cat exit code: $LASTEXITCODE"
               }
+          } else {
+              Log "signtool.exe TIDAK DITEMUKAN di $KitBin"
           }
-          Write-Host "Driver successfully built and signed!"
+
+          # Publikasikan diagnostik ke branch ci-log (channel log yang sudah terbukti)
+          try {
+              $diag | Out-File -FilePath "catalog_log.txt" -Encoding utf8
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git checkout -B ci-log
+              git add -f catalog_log.txt
+              git commit -m "Auto-commit catalog diagnostics [skip ci]"
+              git push origin ci-log --force
+              Write-Host "Diagnostik katalog dipublikasikan ke branch ci-log"
+          } catch {
+              Write-Warning "Gagal mempublikasikan diagnostik katalog: $_"
+          }
 
       - name: Build C++ Native Control Panel
         shell: pwsh
