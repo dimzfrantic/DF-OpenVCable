@@ -27,6 +27,12 @@ Setiap sinyal audio yang diputar ke perangkat Playback/Render secara otomatis di
 
 ## Panduan Instalasi Cepat
 
+### Unduh Paket Siap Pakai (tanpa login)
+Build CI terbaru selalu tersedia di halaman rilis:
+`https://github.com/dimzfrantic/DF-OpenVCable/releases/download/latest-build/DF-OpenVCable-v1.0.0-x64.zip`
+
+Isi paket: `mcvad.sys`, `mcvad.inf`, `mcvad.cat` (test-signed), `MCVAD_TestCert.cer`, `install.bat`, `uninstall.bat`, `setup_cert.bat`, `create_device.ps1`, `control_panel.exe`, `mcvad_control_panel.py`.
+
 ### Syarat Sistem:
 - Windows 10 atau Windows 11 (64-bit / x64).
 - Hak akses Administrator.

@@ -220,7 +220,7 @@ jobs:
           Copy-Item README.md $pkg/ -Force -ErrorAction SilentlyContinue
 
           # Verifikasi isi paket sebelum dikemas (fail-fast jika artefak utama hilang)
-          $required = @("mcvad.sys", "mcvad.inf", "control_panel.exe")
+          $required = @("mcvad.sys", "mcvad.inf", "mcvad.cat", "control_panel.exe", "MCVAD_TestCert.cer")
           foreach ($f in $required) {
               if (-not (Test-Path (Join-Path $pkg $f))) {
                   throw "Paket tidak lengkap: '$f' tidak ditemukan di $pkg"

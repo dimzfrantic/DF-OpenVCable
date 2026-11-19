@@ -1,4 +1,21 @@
-# Changelog: Multi-Cable Virtual Audio Driver (MCVAD)
+# Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
+
+## [1.0.0] - 2026-11-19
+### Added
+- **CI/CD Pipeline Hijau (GitHub Actions `windows-2022`)**: Build driver kernel `mcvad.sys` (x64 Release) berhasil 0 error, dilanjutkan pembuatan katalog `mcvad.cat` via Inf2Cat (signability test: 0 error, 0 warning), test-signing `mcvad.sys` + `mcvad.cat` via signtool SHA256, kompilasi `control_panel.exe`, dan packaging zip.
+- **Rolling GitHub Release**: Setiap push ke `main` otomatis mempublikasikan ulang rilis `latest-build` sehingga paket dapat diunduh tanpa login:
+  `https://github.com/dimzfrantic/DF-OpenVCable/releases/download/latest-build/DF-OpenVCable-v1.0.0-x64.zip`
+- **Fail-fast Packaging**: Step packaging memverifikasi keberadaan `mcvad.sys`, `mcvad.inf`, `mcvad.cat`, `control_panel.exe`, dan `MCVAD_TestCert.cer` sebelum zip dibuat.
+
+### Fixed
+- **LNK2001 unresolved external `CLSID_PortWaveRT` / `IID_IUnknown` / `IID_IMiniport*`**: `DEFINE_GUID` pada header PortCls hanya mendeklarasikan simbol `extern`. Diperbaiki dengan `#define PUT_GUIDS_HERE` + `#include <initguid.h>` sebelum `driver.h` pada `src/adapter.cpp` sehingga GUID COM terinstansiasi di binary driver.
+- **Entry point Control Panel**: `WinMain` (ANSI) tidak cocok dengan build Unicode (`/DUNICODE`). Diubah menjadi `wWinMain` (`PWSTR`).
+- **Step build Control Panel tidak deterministik**: Pemanggilan `build.bat` via `cmd` diganti pemanggilan langsung `cl.exe` dari PowerShell dengan pemeriksaan `$LASTEXITCODE`.
+- **`mcvad.cat` tidak pernah terbentuk**: `Inf2Cat.exe` hanya disediakan dalam varian **x86** (`Windows Kits\10\bin\<ver>\x86\Inf2Cat.exe`), sedangkan pencarian sebelumnya difilter ke folder `x64`. Pencarian tool kini dilakukan rekursif lintas versi kit tanpa filter arsitektur.
+
+### Changed
+- **Migrasi alokasi memori kernel** dari `ExAllocatePoolWithTag(NonPagedPoolNx, ...)` ke `ExAllocatePool2(POOL_FLAG_NON_PAGED, ...)` pada `src/ringbuffer.cpp` dan `src/minwavert.cpp` (menghilangkan warning C4996 deprecated).
+- **Rebranding artefak rilis**: nama paket dan artifact CI menjadi `DF-OpenVCable-v1.0.0-x64` (sebelumnya `MCVAD-v1.2.0`).
 
 ## [1.2.0] - 2026-11-18
 ### Added
