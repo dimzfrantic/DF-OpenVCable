@@ -57,11 +57,13 @@
   <ItemGroup>
     <ClCompile Include="..\src\adapter.cpp" />
     <ClCompile Include="..\src\minwavert.cpp" />
+    <ClCompile Include="..\src\mintopo.cpp" />
     <ClCompile Include="..\src\ringbuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\driver.h" />
     <ClInclude Include="..\src\minwavert.h" />
+    <ClInclude Include="..\src\mintopo.h" />
     <ClInclude Include="..\src\ringbuffer.h" />
     <ClInclude Include="..\src\mcvad_ioctl.h" />
   </ItemGroup>
