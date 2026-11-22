@@ -85,7 +85,6 @@ static const PCFILTER_DESCRIPTOR g_TopoFilterDescriptor = {
     sizeof(PCNODE_DESCRIPTOR),
     0,
     NULL,
-    sizeof(PCCONNECTION_DESCRIPTOR),
     SIZEOF_ARRAY(g_TopoConnections),
     g_TopoConnections,
     SIZEOF_ARRAY(g_TopoCategories),

@@ -6,14 +6,6 @@
 #include "mintopo.h"
 #include "mcvad_ioctl.h"
 
-// Definisi GUID CLSID_PortTopology dan IID_IPortTopology (PortCls)
-#ifndef CLSID_PortTopology
-DEFINE_GUID(CLSID_PortTopology, 0xb4c90a32L, 0x5791, 0x11d0, 0x86, 0xf9, 0x00, 0xa0, 0xc9, 0x11, 0xb5, 0x44);
-#endif
-#ifndef IID_IPortTopology
-DEFINE_GUID(IID_IPortTopology, 0xb4c90a30L, 0x5791, 0x11d0, 0x86, 0xf9, 0x00, 0xa0, 0xc9, 0x11, 0xb5, 0x44);
-#endif
-
 // Nama Subdevice yang diekspos ke Windows
 const PCWSTR g_CableNames[MAX_CABLES] = {
     L"Virtual Audio Cable 1",
@@ -291,7 +283,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
                 (PUNKNOWN)pPortWave,
                 PIN_WAVE_RENDER_SOURCE,
                 (PUNKNOWN)pPortTopo,
-                KSPIN_TOPO_WAVEOUT_SOURCE
+                PIN_TOPO_WAVEOUT_SINK
             );
             if (!NT_SUCCESS(status)) {
                 KdPrint(("[MCVAD] PcRegisterPhysicalConnection (Playback) %ws gagal: 0x%08X\n", g_Cables[i].SubdeviceName, status));
@@ -301,9 +293,9 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
             status = PcRegisterPhysicalConnection(
                 DeviceObject,
                 (PUNKNOWN)pPortTopo,
-                KSPIN_TOPO_WAVEIN_DEST,
+                PIN_TOPO_WAVEIN_SOURCE,
                 (PUNKNOWN)pPortWave,
-                PIN_WAVE_CAPTURE_SOURCE
+                PIN_WAVE_CAPTURE_SINK
             );
             if (!NT_SUCCESS(status)) {
                 KdPrint(("[MCVAD] PcRegisterPhysicalConnection (Capture) %ws gagal: 0x%08X\n", g_Cables[i].SubdeviceName, status));

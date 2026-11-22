@@ -203,7 +203,7 @@ static const PCCONNECTION_DESCRIPTOR g_MiniportConnections[] = {
     // Playback: Host In (Pin 0) -> Speaker Bridge Out (Pin 1)
     { PCFILTER_NODE, PIN_WAVE_RENDER_SINK,    PCFILTER_NODE, PIN_WAVE_RENDER_SOURCE },
     // Recording: Mic Bridge In (Pin 2) -> Host Out (Pin 3)
-    { PCFILTER_NODE, PIN_WAVE_CAPTURE_SOURCE, PCFILTER_NODE, PIN_WAVE_CAPTURE_SINK }
+    { PCFILTER_NODE, PIN_WAVE_CAPTURE_SINK,   PCFILTER_NODE, PIN_WAVE_CAPTURE_SOURCE }
 };
 
 static const GUID g_MiniportCategories[] = {
