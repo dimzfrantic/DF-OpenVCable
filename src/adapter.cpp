@@ -6,6 +6,14 @@
 #include "mintopo.h"
 #include "mcvad_ioctl.h"
 
+// Definisi GUID CLSID_PortTopology dan IID_IPortTopology (PortCls)
+#ifndef CLSID_PortTopology
+DEFINE_GUID(CLSID_PortTopology, 0xb4c90a32L, 0x5791, 0x11d0, 0x86, 0xf9, 0x00, 0xa0, 0xc9, 0x11, 0xb5, 0x44);
+#endif
+#ifndef IID_IPortTopology
+DEFINE_GUID(IID_IPortTopology, 0xb4c90a30L, 0x5791, 0x11d0, 0x86, 0xf9, 0x00, 0xa0, 0xc9, 0x11, 0xb5, 0x44);
+#endif
+
 // Nama Subdevice yang diekspos ke Windows
 const PCWSTR g_CableNames[MAX_CABLES] = {
     L"Virtual Audio Cable 1",
