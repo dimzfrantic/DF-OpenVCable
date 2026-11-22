@@ -259,7 +259,6 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
         CMiniportTopology* pMiniportTopo = new (NonPagedPoolNx, MCVAD_POOL_TAG) CMiniportTopology(NULL);
         if (!pMiniportTopo) continue;
         pMiniportTopo->AddRef();
-        pMiniportTopo->Init(i);
 
         // 5. Buat Port Topology
         PPORTTOPOLOGY pPortTopo = NULL;
@@ -284,7 +283,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
                 (PPORT)pPortWave,
                 PIN_WAVE_RENDER_SOURCE,
                 (PPORT)pPortTopo,
-                PIN_TOPO_WAVEOUT_SINK
+                KSPIN_TOPO_WAVEOUT_SOURCE
             );
             if (!NT_SUCCESS(status)) {
                 KdPrint(("[MCVAD] PcRegisterPhysicalConnection (Playback) %ws gagal: 0x%08X\n", g_Cables[i].SubdeviceName, status));
@@ -294,7 +293,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
             status = PcRegisterPhysicalConnection(
                 DeviceObject,
                 (PPORT)pPortTopo,
-                PIN_TOPO_WAVEIN_SOURCE,
+                KSPIN_TOPO_WAVEIN_DEST,
                 (PPORT)pPortWave,
                 PIN_WAVE_CAPTURE_SOURCE
             );
