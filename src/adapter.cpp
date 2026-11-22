@@ -3,6 +3,7 @@
 #include "driver.h"
 #include "ringbuffer.h"
 #include "minwavert.h"
+#include "mintopo.h"
 #include "mcvad_ioctl.h"
 
 // Nama Subdevice yang diekspos ke Windows
@@ -20,6 +21,14 @@ const PCWSTR g_CableSubdeviceNames[MAX_CABLES] = {
     L"CableB",
     L"CableC",
     L"CableD"
+};
+
+const PCWSTR g_CableTopoSubdeviceNames[MAX_CABLES] = {
+    L"Cable1_Topo",
+    L"CableA_Topo",
+    L"CableB_Topo",
+    L"CableC_Topo",
+    L"CableD_Topo"
 };
 
 // Global array konteks virtual cable
@@ -191,13 +200,13 @@ NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
 #pragma code_seg("PAGE")
 NTSTATUS AddDevice(PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT PhysicalDeviceObject) {
     PAGED_CODE();
-    KdPrint(("[MCVAD] AddDevice: Mendaftarkan 5 subdevice virtual audio\n"));
+    KdPrint(("[MCVAD] AddDevice: Mendaftarkan 10 subdevice virtual audio (5 WaveRT + 5 Topology)\n"));
 
     NTSTATUS ntStatus = PcAddAdapterDevice(
         DriverObject,
         PhysicalDeviceObject,
         (PCPFNSTARTDEVICE)StartDevice,
-        MAX_CABLES, // Max subdevices
+        MAX_CABLES * 2, // 5 WaveRT + 5 Topology = 10 Subdevices
         0
     );
 
@@ -209,7 +218,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
     UNREFERENCED_PARAMETER(Irp);
     UNREFERENCED_PARAMETER(ResourceList);
 
-    KdPrint(("[MCVAD] StartDevice: Membangun alur loopback untuk 5 virtual cable\n"));
+    KdPrint(("[MCVAD] StartDevice: Membangun alur loopback dan topologi untuk 5 virtual cable\n"));
 
     ULONG bufferSize = DEFAULT_SAMPLE_RATE * DEFAULT_CHANNELS * (DEFAULT_CONTAINER_SIZE / 8) * BUFFER_DURATION_SECONDS;
 
@@ -217,6 +226,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
         g_Cables[i].CableIndex = i;
         g_Cables[i].Name = g_CableNames[i];
         g_Cables[i].SubdeviceName = g_CableSubdeviceNames[i];
+        g_Cables[i].TopoSubdeviceName = g_CableTopoSubdeviceNames[i];
 
         // 1. Alokasi Ring Buffer terpisah untuk tiap kabel agar tidak bercampur
         g_Cables[i].pSharedBuffer = new (NonPagedPoolNx, MCVAD_POOL_TAG) CCircularRingBuffer();
@@ -225,26 +235,73 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
         }
 
         // 2. Buat miniport WaveRT
-        CMiniportWaveRT* pMiniport = new (NonPagedPoolNx, MCVAD_POOL_TAG) CMiniportWaveRT(NULL);
-        if (!pMiniport) continue;
-        pMiniport->AddRef();
-        pMiniport->Init(i, g_Cables[i].pSharedBuffer);
+        CMiniportWaveRT* pMiniportWave = new (NonPagedPoolNx, MCVAD_POOL_TAG) CMiniportWaveRT(NULL);
+        if (!pMiniportWave) continue;
+        pMiniportWave->AddRef();
+        pMiniportWave->Init(i, g_Cables[i].pSharedBuffer);
 
         // 3. Buat Port WaveRT
-        PPORTWAVERT pPort = NULL;
-        NTSTATUS status = PcNewPort((PPORT*)&pPort, CLSID_PortWaveRT);
-        if (NT_SUCCESS(status) && pPort) {
-            status = pPort->Init(DeviceObject, Irp, pMiniport, NULL, ResourceList);
+        PPORTWAVERT pPortWave = NULL;
+        NTSTATUS status = PcNewPort((PPORT*)&pPortWave, CLSID_PortWaveRT);
+        if (NT_SUCCESS(status) && pPortWave) {
+            status = pPortWave->Init(DeviceObject, Irp, pMiniportWave, NULL, ResourceList);
             if (NT_SUCCESS(status)) {
-                // 4. Daftarkan Subdevice ke Windows Audio Stack
-                status = PcRegisterSubdevice(DeviceObject, (PWSTR)g_Cables[i].SubdeviceName, pPort);
+                status = PcRegisterSubdevice(DeviceObject, (PWSTR)g_Cables[i].SubdeviceName, pPortWave);
                 if (NT_SUCCESS(status)) {
-                    KdPrint(("[MCVAD] Subdevice terdaftar: %ws\n", g_Cables[i].SubdeviceName));
+                    KdPrint(("[MCVAD] WaveRT Subdevice terdaftar: %ws\n", g_Cables[i].SubdeviceName));
                 }
             }
-            g_Cables[i].pPort = pPort;
+            g_Cables[i].pPort = (PPORT)pPortWave;
         }
-        g_Cables[i].pMiniport = pMiniport;
+        g_Cables[i].pMiniport = (PMINIPORT)pMiniportWave;
+
+        // 4. Buat miniport Topology
+        CMiniportTopology* pMiniportTopo = new (NonPagedPoolNx, MCVAD_POOL_TAG) CMiniportTopology(NULL);
+        if (!pMiniportTopo) continue;
+        pMiniportTopo->AddRef();
+        pMiniportTopo->Init(i);
+
+        // 5. Buat Port Topology
+        PPORTTOPOLOGY pPortTopo = NULL;
+        status = PcNewPort((PPORT*)&pPortTopo, CLSID_PortTopology);
+        if (NT_SUCCESS(status) && pPortTopo) {
+            status = pPortTopo->Init(DeviceObject, Irp, pMiniportTopo, NULL, ResourceList);
+            if (NT_SUCCESS(status)) {
+                status = PcRegisterSubdevice(DeviceObject, (PWSTR)g_Cables[i].TopoSubdeviceName, pPortTopo);
+                if (NT_SUCCESS(status)) {
+                    KdPrint(("[MCVAD] Topology Subdevice terdaftar: %ws\n", g_Cables[i].TopoSubdeviceName));
+                }
+            }
+            g_Cables[i].pPortTopo = (PPORT)pPortTopo;
+        }
+        g_Cables[i].pMiniportTopo = (PMINIPORT)pMiniportTopo;
+
+        // 6. Hubungkan WaveRT dan Topology via Physical Connection
+        if (pPortWave && pPortTopo) {
+            // Playback: WaveRT Out (Pin 1) -> Topology In (Pin 0)
+            status = PcRegisterPhysicalConnection(
+                DeviceObject,
+                (PPORT)pPortWave,
+                PIN_WAVE_RENDER_SOURCE,
+                (PPORT)pPortTopo,
+                PIN_TOPO_WAVEOUT_SINK
+            );
+            if (!NT_SUCCESS(status)) {
+                KdPrint(("[MCVAD] PcRegisterPhysicalConnection (Playback) %ws gagal: 0x%08X\n", g_Cables[i].SubdeviceName, status));
+            }
+
+            // Capture: Topology Out (Pin 3) -> WaveRT In (Pin 2)
+            status = PcRegisterPhysicalConnection(
+                DeviceObject,
+                (PPORT)pPortTopo,
+                PIN_TOPO_WAVEIN_SOURCE,
+                (PPORT)pPortWave,
+                PIN_WAVE_CAPTURE_SOURCE
+            );
+            if (!NT_SUCCESS(status)) {
+                KdPrint(("[MCVAD] PcRegisterPhysicalConnection (Capture) %ws gagal: 0x%08X\n", g_Cables[i].SubdeviceName, status));
+            }
+        }
     }
 
     return STATUS_SUCCESS;

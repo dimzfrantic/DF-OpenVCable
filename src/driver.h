@@ -34,13 +34,17 @@ enum CABLE_INDEX {
 class CCircularRingBuffer;
 class CMiniportWaveRT;
 class CMiniportWaveRTStream;
+class CMiniportTopology;
 
 // Struktur konteks setiap kabel virtual
 typedef struct _CABLE_CONTEXT {
     ULONG                   CableIndex;
     PCWSTR                  Name;
     PCWSTR                  SubdeviceName;
+    PCWSTR                  TopoSubdeviceName;
     CCircularRingBuffer*    pSharedBuffer;
     PPORT                   pPort;
     PMINIPORT               pMiniport;
+    PPORT                   pPortTopo;
+    PMINIPORT               pMiniportTopo;
 } CABLE_CONTEXT, *PCABLE_CONTEXT;

@@ -163,24 +163,24 @@ static const PCPIN_DESCRIPTOR g_MiniportPins[] = {
             &KSCATEGORY_AUDIO, NULL, 0
         }
     },
-    // Pin 1: WaveRT Render Bridge Pin (Speaker Endpoint Destination)
+    // Pin 1: WaveRT Render Source (Physical Connection to Topology Pin 0)
     {
         0, 0, 0, NULL,
         {
             0, NULL, 0, NULL,
             SIZEOF_ARRAY(g_PinDataRangePointersBridge), g_PinDataRangePointersBridge,
             KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE,
-            &g_KsNodeTypeSpeaker, NULL, 0
+            &KSCATEGORY_AUDIO, NULL, 0
         }
     },
-    // Pin 2: WaveRT Capture Bridge Pin (Microphone Endpoint Source)
+    // Pin 2: WaveRT Capture Sink (Physical Connection from Topology Pin 3)
     {
         0, 0, 0, NULL,
         {
             0, NULL, 0, NULL,
             SIZEOF_ARRAY(g_PinDataRangePointersBridge), g_PinDataRangePointersBridge,
             KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE,
-            &g_KsNodeTypeMicrophone, NULL, 0
+            &KSCATEGORY_AUDIO, NULL, 0
         }
     },
     // Pin 3: WaveRT Capture Host Streaming Pin (Recording Source)
