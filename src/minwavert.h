@@ -6,12 +6,12 @@
 // Forward declaration
 class CMiniportWaveRT;
 
-// Pin Enums untuk Topologi WaveRT (Host Streaming & Bridge Endpoints)
+// Pin Enums untuk Topologi WaveRT (Host Streaming & Physical Bridge Pins)
 enum {
-    PIN_WAVE_RENDER_SINK = 0,       // WaveRT Playback Stream (Host In)
-    PIN_WAVE_RENDER_SOURCE,         // Speaker Bridge (Endpoint Out)
-    PIN_WAVE_CAPTURE_SOURCE,        // Microphone Bridge (Endpoint In)
-    PIN_WAVE_CAPTURE_SINK           // WaveRT Recording Stream (Host Out)
+    PIN_WAVE_RENDER_SINK = 0,       // WaveRT Playback Host Stream (Host In)
+    PIN_WAVE_RENDER_SOURCE = 1,     // WaveRT Render Source (Physical Connection to Topology)
+    PIN_WAVE_CAPTURE_SINK = 2,      // WaveRT Capture Sink (Physical Connection from Topology)
+    PIN_WAVE_CAPTURE_SOURCE = 3     // WaveRT Capture Host Stream (Host Out)
 };
 
 //=====================================================================

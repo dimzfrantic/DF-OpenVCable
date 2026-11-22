@@ -295,7 +295,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
                 (PPORT)pPortTopo,
                 KSPIN_TOPO_WAVEIN_DEST,
                 (PPORT)pPortWave,
-                PIN_WAVE_CAPTURE_SOURCE
+                PIN_WAVE_CAPTURE_SINK
             );
             if (!NT_SUCCESS(status)) {
                 KdPrint(("[MCVAD] PcRegisterPhysicalConnection (Capture) %ws gagal: 0x%08X\n", g_Cables[i].SubdeviceName, status));
