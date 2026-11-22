@@ -95,6 +95,7 @@ static const PCFILTER_DESCRIPTOR g_TopoFilterDescriptor = {
 
 CMiniportTopology::CMiniportTopology(PUNKNOWN pUnknownOuter) :
     CUnknown(pUnknownOuter),
+    m_pPort(NULL),
     m_CableIndex(0)
 {
     PAGED_CODE();
@@ -102,11 +103,25 @@ CMiniportTopology::CMiniportTopology(PUNKNOWN pUnknownOuter) :
 
 CMiniportTopology::~CMiniportTopology() {
     PAGED_CODE();
+    if (m_pPort) {
+        m_pPort->Release();
+        m_pPort = NULL;
+    }
 }
 
-NTSTATUS CMiniportTopology::Init(ULONG CableIndex) {
+STDMETHODIMP_(NTSTATUS) CMiniportTopology::Init(
+    PUNKNOWN        UnknownAdapter,
+    PRESOURCELIST   ResourceList,
+    PPORTTOPOLOGY   Port
+) {
     PAGED_CODE();
-    m_CableIndex = CableIndex;
+    UNREFERENCED_PARAMETER(UnknownAdapter);
+    UNREFERENCED_PARAMETER(ResourceList);
+
+    if (!Port) return STATUS_INVALID_PARAMETER;
+    m_pPort = Port;
+    m_pPort->AddRef();
+
     return STATUS_SUCCESS;
 }
 

@@ -15,7 +15,8 @@ class CMiniportTopology :
     public CUnknown
 {
 private:
-    ULONG m_CableIndex;
+    PPORTTOPOLOGY m_pPort;
+    ULONG         m_CableIndex;
 
 public:
     DECLARE_STD_UNKNOWN();
@@ -25,5 +26,6 @@ public:
 
     IMP_IMiniportTopology;
 
-    NTSTATUS Init(ULONG CableIndex);
+    void SetCableIndex(ULONG CableIndex) { m_CableIndex = CableIndex; }
+    ULONG GetCableIndex() const { return m_CableIndex; }
 };
