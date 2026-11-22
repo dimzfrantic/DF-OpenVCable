@@ -272,9 +272,9 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
         PPORTTOPOLOGY pPortTopo = NULL;
         status = PcNewPort((PPORT*)&pPortTopo, CLSID_PortTopology);
         if (NT_SUCCESS(status) && pPortTopo) {
-            status = pPortTopo->Init(DeviceObject, Irp, pMiniportTopo, NULL, ResourceList);
+            status = pPortTopo->Init(DeviceObject, Irp, (PMINIPORT)pMiniportTopo, NULL, ResourceList);
             if (NT_SUCCESS(status)) {
-                status = PcRegisterSubdevice(DeviceObject, (PWSTR)g_Cables[i].TopoSubdeviceName, pPortTopo);
+                status = PcRegisterSubdevice(DeviceObject, (PWSTR)g_Cables[i].TopoSubdeviceName, (PPORT)pPortTopo);
                 if (NT_SUCCESS(status)) {
                     KdPrint(("[MCVAD] Topology Subdevice terdaftar: %ws\n", g_Cables[i].TopoSubdeviceName));
                 }
@@ -288,9 +288,9 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
             // Playback: WaveRT Out (Pin 1) -> Topology In (Pin 0)
             status = PcRegisterPhysicalConnection(
                 DeviceObject,
-                (PPORT)pPortWave,
+                (PUNKNOWN)pPortWave,
                 PIN_WAVE_RENDER_SOURCE,
-                (PPORT)pPortTopo,
+                (PUNKNOWN)pPortTopo,
                 KSPIN_TOPO_WAVEOUT_SOURCE
             );
             if (!NT_SUCCESS(status)) {
@@ -300,10 +300,10 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
             // Capture: Topology Out (Pin 3) -> WaveRT In (Pin 2)
             status = PcRegisterPhysicalConnection(
                 DeviceObject,
-                (PPORT)pPortTopo,
+                (PUNKNOWN)pPortTopo,
                 KSPIN_TOPO_WAVEIN_DEST,
-                (PPORT)pPortWave,
-                PIN_WAVE_CAPTURE_SINK
+                (PUNKNOWN)pPortWave,
+                PIN_WAVE_CAPTURE_SOURCE
             );
             if (!NT_SUCCESS(status)) {
                 KdPrint(("[MCVAD] PcRegisterPhysicalConnection (Capture) %ws gagal: 0x%08X\n", g_Cables[i].SubdeviceName, status));
