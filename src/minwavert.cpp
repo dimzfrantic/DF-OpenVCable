@@ -77,6 +77,19 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRT::NewStream(
     UNREFERENCED_PARAMETER(PortStream);
     if (!ppStream || !DataFormat) return STATUS_INVALID_PARAMETER;
 
+    // Bridge pins (Pin 1 & 2) tidak mendukung stream creation
+    if (Pin == PIN_WAVE_RENDER_SOURCE || Pin == PIN_WAVE_CAPTURE_SOURCE) {
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    if (Pin == PIN_WAVE_RENDER_SINK) {
+        Capture = FALSE;
+    } else if (Pin == PIN_WAVE_CAPTURE_SINK) {
+        Capture = TRUE;
+    } else {
+        return STATUS_INVALID_PARAMETER;
+    }
+
     CMiniportWaveRTStream* pNewStream = new (NonPagedPoolNx, MCVAD_POOL_TAG) CMiniportWaveRTStream(NULL);
     if (!pNewStream) return STATUS_INSUFFICIENT_RESOURCES;
 
@@ -94,6 +107,28 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRT::NewStream(
 //=====================================================================
 // Pin & Filter Descriptors untuk WaveRT
 //=====================================================================
+
+// Endpoint Node GUIDs
+static const GUID g_KsNodeTypeSpeaker = { STATICGUIDOF(KSNODETYPE_SPEAKER) };
+static const GUID g_KsNodeTypeMicrophone = { STATICGUIDOF(KSNODETYPE_MICROPHONE) };
+
+// Bridge pin data range (koneksi analog ke audio endpoint device)
+static const KSDATARANGE g_PinDataRangesBridge[] = {
+    {
+        sizeof(KSDATARANGE),
+        0,
+        0,
+        0,
+        { STATICGUIDOF(KSDATAFORMAT_TYPE_AUDIO) },
+        { STATICGUIDOF(KSDATAFORMAT_SUBTYPE_ANALOG) },
+        { STATICGUIDOF(KSDATAFORMAT_SPECIFIER_NONE) }
+    }
+};
+
+static const PKSDATARANGE g_PinDataRangePointersBridge[] = {
+    (PKSDATARANGE)&g_PinDataRangesBridge[0]
+};
+
 static const KSDATARANGE_AUDIO g_PinDataRangesAudio[] = {
     {
         {
@@ -118,9 +153,9 @@ static const PKSDATARANGE g_PinDataRangePointers[] = {
 };
 
 static const PCPIN_DESCRIPTOR g_MiniportPins[] = {
-    // Pin 0: WaveRT Render (Playback Sink)
+    // Pin 0: WaveRT Render Host Streaming Pin (Playback Sink)
     {
-        0, 0, 0, NULL,
+        1, 1, 0, NULL,
         {
             0, NULL, 0, NULL,
             SIZEOF_ARRAY(g_PinDataRangePointers), g_PinDataRangePointers,
@@ -128,9 +163,29 @@ static const PCPIN_DESCRIPTOR g_MiniportPins[] = {
             &KSCATEGORY_AUDIO, NULL, 0
         }
     },
-    // Pin 1: WaveRT Capture (Recording Source)
+    // Pin 1: WaveRT Render Bridge Pin (Speaker Endpoint Destination)
     {
         0, 0, 0, NULL,
+        {
+            0, NULL, 0, NULL,
+            SIZEOF_ARRAY(g_PinDataRangePointersBridge), g_PinDataRangePointersBridge,
+            KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE,
+            &g_KsNodeTypeSpeaker, NULL, 0
+        }
+    },
+    // Pin 2: WaveRT Capture Bridge Pin (Microphone Endpoint Source)
+    {
+        0, 0, 0, NULL,
+        {
+            0, NULL, 0, NULL,
+            SIZEOF_ARRAY(g_PinDataRangePointersBridge), g_PinDataRangePointersBridge,
+            KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE,
+            &g_KsNodeTypeMicrophone, NULL, 0
+        }
+    },
+    // Pin 3: WaveRT Capture Host Streaming Pin (Recording Source)
+    {
+        1, 1, 0, NULL,
         {
             0, NULL, 0, NULL,
             SIZEOF_ARRAY(g_PinDataRangePointers), g_PinDataRangePointers,
@@ -138,6 +193,17 @@ static const PCPIN_DESCRIPTOR g_MiniportPins[] = {
             &KSCATEGORY_AUDIO, NULL, 0
         }
     }
+};
+
+//=====================================================================
+// Internal Topology Connections
+// Menghubungkan Host Streaming Pin ke Endpoint Bridge Pin
+//=====================================================================
+static const PCCONNECTION_DESCRIPTOR g_MiniportConnections[] = {
+    // Playback: Host In (Pin 0) -> Speaker Bridge Out (Pin 1)
+    { PCFILTER_NODE, PIN_WAVE_RENDER_SINK,    PCFILTER_NODE, PIN_WAVE_RENDER_SOURCE },
+    // Recording: Mic Bridge In (Pin 2) -> Host Out (Pin 3)
+    { PCFILTER_NODE, PIN_WAVE_CAPTURE_SOURCE, PCFILTER_NODE, PIN_WAVE_CAPTURE_SINK }
 };
 
 static const GUID g_MiniportCategories[] = {
@@ -156,8 +222,8 @@ static const PCFILTER_DESCRIPTOR g_MiniportFilterDescriptor = {
     sizeof(PCNODE_DESCRIPTOR),
     0,
     NULL,
-    0,
-    NULL,
+    SIZEOF_ARRAY(g_MiniportConnections),
+    g_MiniportConnections,
     SIZEOF_ARRAY(g_MiniportCategories),
     g_MiniportCategories
 };

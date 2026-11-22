@@ -6,6 +6,14 @@
 // Forward declaration
 class CMiniportWaveRT;
 
+// Pin Enums untuk Topologi WaveRT (Host Streaming & Bridge Endpoints)
+enum {
+    PIN_WAVE_RENDER_SINK = 0,       // WaveRT Playback Stream (Host In)
+    PIN_WAVE_RENDER_SOURCE,         // Speaker Bridge (Endpoint Out)
+    PIN_WAVE_CAPTURE_SOURCE,        // Microphone Bridge (Endpoint In)
+    PIN_WAVE_CAPTURE_SINK           // WaveRT Recording Stream (Host Out)
+};
+
 //=====================================================================
 // CMiniportWaveRTStream: Implementasi stream audio WaveRT
 //=====================================================================
@@ -15,7 +23,7 @@ class CMiniportWaveRTStream :
 {
 private:
     CMiniportWaveRT*        m_pMiniport;
-    ULONG                   m_PinId;            // 0 = Render (Playback), 1 = Capture (Recording)
+    ULONG                   m_PinId;            // PIN_WAVE_RENDER_SINK / PIN_WAVE_CAPTURE_SINK
     BOOLEAN                 m_bCapture;
     KSSTATE                 m_State;
     PKSDATAFORMAT_WAVEFORMATEXTENSIBLE m_pFormat;

@@ -25,7 +25,7 @@ if not exist "%SYS_PATH%" (
     echo [PERINGATAN] File driver binary 'mcvad.sys' belum ditemukan di folder ini.
     echo Kompilasi mcvad.vcxproj dengan WDK terlebih dahulu sebelum instalasi.
     echo.
-    set /p LANJUT="Tetap lanjutkan penyiapan sertifikat dan test signing? (Y/N): "
+    set /p LANJUT="Tetap lanjutkan penyiapan sertifikat dan test signing? [Y/N]: "
     if /i not "!LANJUT!"=="Y" exit /b 0
 )
 

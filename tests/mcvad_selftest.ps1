@@ -142,14 +142,12 @@ if (Test-Path $svcKey) {
 # ----------------------------------------------------------------- 6. Devnode
 $dev = $null
 try {
-    $dev = Get-PnpDevice -InstanceId 'ROOT\MCVAD\*' -ErrorAction SilentlyContinue | Select-Object -First 1
+    $dev = Get-PnpDevice -ErrorAction SilentlyContinue |
+           Where-Object {
+               $_.InstanceId -like 'ROOT\MCVAD*' -or
+               ($_.InstanceId -like 'ROOT\MEDIA*' -and ($_.FriendlyName -like '*OpenVCable*' -or $_.Service -eq 'mcvad'))
+           } | Select-Object -First 1
 } catch { }
-if (-not $dev) {
-    try {
-        $dev = Get-PnpDevice -ErrorAction SilentlyContinue |
-               Where-Object { $_.InstanceId -like 'ROOT\MCVAD*' } | Select-Object -First 1
-    } catch { }
-}
 
 if ($dev) {
     if ($dev.Status -eq 'OK') {
