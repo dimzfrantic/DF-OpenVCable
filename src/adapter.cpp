@@ -37,6 +37,59 @@ static PDEVICE_OBJECT g_pControlDeviceObject = NULL;
 static ULONG g_ConfiguredSampleRate[MAX_CABLES] = { 48000, 48000, 48000, 48000, 48000 };
 static ULONG g_ConfiguredBufferMs[MAX_CABLES] = { 500, 500, 500, 500, 500 };
 
+// ============================================================
+// Diagnostik StartDevice
+// ------------------------------------------------------------
+// Merekam status NTSTATUS setiap langkah pembuatan subdevice ke
+// registry HKLM\SOFTWARE\MCVAD\StartDiag (REG_BINARY) supaya
+// kegagalan PcNewPort / Init / PcRegisterSubdevice bisa dibaca
+// dengan 'reg query' tanpa perlu kernel debugger.
+//
+// Layout: array of { ULONG Cable; ULONG Stage; ULONG Status; }
+// ============================================================
+#define MCVAD_STAGE_WAVE_PORT       1
+#define MCVAD_STAGE_WAVE_INIT       2
+#define MCVAD_STAGE_WAVE_REGISTER   3
+#define MCVAD_STAGE_TOPO_PORT       4
+#define MCVAD_STAGE_TOPO_INIT       5
+#define MCVAD_STAGE_TOPO_REGISTER   6
+#define MCVAD_STAGE_CONN_PLAYBACK   7
+#define MCVAD_STAGE_CONN_CAPTURE    8
+#define MCVAD_DIAG_MAX_RECORDS      (MAX_CABLES * 8)
+
+typedef struct _MCVAD_DIAG_RECORD {
+    ULONG Cable;
+    ULONG Stage;
+    ULONG Status;
+} MCVAD_DIAG_RECORD;
+
+static MCVAD_DIAG_RECORD g_Diag[MCVAD_DIAG_MAX_RECORDS];
+static ULONG g_DiagCount = 0;
+
+static VOID McvadDiagReset(VOID) {
+    g_DiagCount = 0;
+    RtlZeroMemory(g_Diag, sizeof(g_Diag));
+}
+
+static VOID McvadDiag(ULONG Cable, ULONG Stage, NTSTATUS Status) {
+    if (g_DiagCount < MCVAD_DIAG_MAX_RECORDS) {
+        g_Diag[g_DiagCount].Cable  = Cable;
+        g_Diag[g_DiagCount].Stage  = Stage;
+        g_Diag[g_DiagCount].Status = (ULONG)Status;
+        g_DiagCount++;
+    }
+}
+
+static VOID McvadDiagFlush(VOID) {
+    RtlWriteRegistryValue(
+        RTL_REGISTRY_ABSOLUTE,
+        L"\\Registry\\Machine\\SOFTWARE\\MCVAD",
+        L"StartDiag",
+        REG_BINARY,
+        g_Diag,
+        g_DiagCount * sizeof(MCVAD_DIAG_RECORD));
+}
+
 // Prototipe IOCTL Dispatcher
 NTSTATUS McvadCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp);
@@ -219,6 +272,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
     UNREFERENCED_PARAMETER(ResourceList);
 
     KdPrint(("[MCVAD] StartDevice: Membangun alur loopback dan topologi untuk 5 virtual cable\n"));
+    McvadDiagReset();
 
     ULONG bufferSize = DEFAULT_SAMPLE_RATE * DEFAULT_CHANNELS * (DEFAULT_CONTAINER_SIZE / 8) * BUFFER_DURATION_SECONDS;
 
@@ -243,10 +297,13 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
         // 3. Buat Port WaveRT
         PPORTWAVERT pPortWave = NULL;
         NTSTATUS status = PcNewPort((PPORT*)&pPortWave, CLSID_PortWaveRT);
+        McvadDiag(i, MCVAD_STAGE_WAVE_PORT, status);
         if (NT_SUCCESS(status) && pPortWave) {
             status = pPortWave->Init(DeviceObject, Irp, pMiniportWave, NULL, ResourceList);
+            McvadDiag(i, MCVAD_STAGE_WAVE_INIT, status);
             if (NT_SUCCESS(status)) {
                 status = PcRegisterSubdevice(DeviceObject, (PWSTR)g_Cables[i].SubdeviceName, pPortWave);
+                McvadDiag(i, MCVAD_STAGE_WAVE_REGISTER, status);
                 if (NT_SUCCESS(status)) {
                     KdPrint(("[MCVAD] WaveRT Subdevice terdaftar: %ws\n", g_Cables[i].SubdeviceName));
                 }
@@ -263,10 +320,13 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
         // 5. Buat Port Topology
         PPORTTOPOLOGY pPortTopo = NULL;
         status = PcNewPort((PPORT*)&pPortTopo, CLSID_PortTopology);
+        McvadDiag(i, MCVAD_STAGE_TOPO_PORT, status);
         if (NT_SUCCESS(status) && pPortTopo) {
             status = pPortTopo->Init(DeviceObject, Irp, (PMINIPORT)pMiniportTopo, NULL, ResourceList);
+            McvadDiag(i, MCVAD_STAGE_TOPO_INIT, status);
             if (NT_SUCCESS(status)) {
                 status = PcRegisterSubdevice(DeviceObject, (PWSTR)g_Cables[i].TopoSubdeviceName, (PPORT)pPortTopo);
+                McvadDiag(i, MCVAD_STAGE_TOPO_REGISTER, status);
                 if (NT_SUCCESS(status)) {
                     KdPrint(("[MCVAD] Topology Subdevice terdaftar: %ws\n", g_Cables[i].TopoSubdeviceName));
                 }
@@ -285,6 +345,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
                 (PUNKNOWN)pPortTopo,
                 PIN_TOPO_WAVEOUT_SINK
             );
+            McvadDiag(i, MCVAD_STAGE_CONN_PLAYBACK, status);
             if (!NT_SUCCESS(status)) {
                 KdPrint(("[MCVAD] PcRegisterPhysicalConnection (Playback) %ws gagal: 0x%08X\n", g_Cables[i].SubdeviceName, status));
             }
@@ -297,12 +358,14 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
                 (PUNKNOWN)pPortWave,
                 PIN_WAVE_CAPTURE_SINK
             );
+            McvadDiag(i, MCVAD_STAGE_CONN_CAPTURE, status);
             if (!NT_SUCCESS(status)) {
                 KdPrint(("[MCVAD] PcRegisterPhysicalConnection (Capture) %ws gagal: 0x%08X\n", g_Cables[i].SubdeviceName, status));
             }
         }
     }
 
+    McvadDiagFlush();
     return STATUS_SUCCESS;
 }
 #pragma code_seg()
