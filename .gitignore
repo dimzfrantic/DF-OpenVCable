@@ -13,11 +13,11 @@ AIR/*.cer
 AIR/*.exe
 AIR/*.zip
 AIR/latest.zip
-AIR/_STALE_*/
+AIR/_STALE_*
 
 # Sisa ekstraksi folder paket (mis. AIR/DF-OpenVCable-v1.0.0-x64/)
-AIR/*_package_*/
-AIR/DF-OpenVCable-*/
+AIR/*_package_*
+AIR/DF-OpenVCable-*
 
 # ---- Output build WDK (package/) ----
 package/*.sys
