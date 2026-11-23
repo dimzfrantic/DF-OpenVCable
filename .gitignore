@@ -1,0 +1,71 @@
+# ============================================================
+# DF-OpenVCable — .gitignore
+# ============================================================
+# Prinsip: repository menyimpan SOURCE, bukan artefak build.
+# Paket rilis resmi tersedia di GitHub Releases (tag: latest-build),
+# dihasilkan oleh .github/workflows/build.yml.
+
+# ---- Paket rilis lokal (AIR/) ----
+# Binary & arsip hasil unduhan/ekstraksi dari Releases
+AIR/*.sys
+AIR/*.cat
+AIR/*.cer
+AIR/*.exe
+AIR/*.zip
+AIR/latest.zip
+AIR/_STALE_*/
+
+# Sisa ekstraksi folder paket (mis. AIR/DF-OpenVCable-v1.0.0-x64/)
+AIR/*_package_*/
+AIR/DF-OpenVCable-*/
+
+# ---- Output build WDK (package/) ----
+package/*.sys
+package/*.cat
+package/*.cer
+package/*.zip
+package/x64/
+package/ARM64/
+package/Release/
+package/Debug/
+package/*.inf.bak
+
+# ---- Objek & simbol kompilasi ----
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.res
+*.tmp
+*.log
+*.wrn
+*.err
+*.etl
+*.dmp
+
+# ---- Visual Studio / MSBuild ----
+.vs/
+*.user
+*.suo
+*.vcxproj.filters
+*.vcxproj.user
+ipch/
+x64/
+ARM64/
+Debug/
+Release/
+
+# ---- Python ----
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ---- OS & editor ----
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*~
