@@ -15,7 +15,7 @@ cd /d "%~dp0"
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo [INFO] Meminta hak Administrator...
-    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    powershell -Command "Start-Process '%~f0' -Verb RunAs"
     exit /b 0
 )
 
@@ -26,7 +26,7 @@ echo.
 
 if not exist "%~dp0mcvad.inf" (
     echo [ERROR] mcvad.inf tidak ditemukan di folder ini.
-    echo         Jalankan update_driver.bat dari folder paket (AIR).
+    echo         Jalankan update_driver.bat dari folder paket AIR.
     pause & exit /b 1
 )
 if not exist "%~dp0mcvad.sys" (
