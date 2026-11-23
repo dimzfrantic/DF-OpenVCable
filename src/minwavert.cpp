@@ -339,12 +339,17 @@ NTSTATUS CMiniportWaveRTStream::Init(
 }
 
 STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::SetState(KSSTATE State) {
-    m_State = State;
-    if (State == KSSTATE_RUN) {
-        KeQueryPerformanceCounter(&m_StartTime);
-        m_LinearPosition = 0;
-    } else if (State == KSSTATE_STOP) {
-        m_LinearPosition = 0;
+    if (m_State != State) {
+        m_State = State;
+        if (State == KSSTATE_RUN) {
+            KeQueryPerformanceCounter(&m_StartTime);
+            m_LinearPosition = 0;
+        } else if (State == KSSTATE_STOP) {
+            m_LinearPosition = 0;
+            if (m_pDmaBuffer && m_DmaBufferSize > 0) {
+                RtlZeroMemory(m_pDmaBuffer, m_DmaBufferSize);
+            }
+        }
     }
     return STATUS_SUCCESS;
 }
@@ -357,54 +362,86 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::SetFormat(PKSDATAFORMAT DataForma
 STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPosition(KSAUDIO_POSITION* pPosition) {
     if (!pPosition || m_DmaBufferSize == 0) return STATUS_INVALID_PARAMETER;
 
+    if (m_State != KSSTATE_RUN) {
+        pPosition->PlayOffset = 0;
+        pPosition->WriteOffset = 0;
+        return STATUS_SUCCESS;
+    }
+
     LARGE_INTEGER now, elapsed;
     now = KeQueryPerformanceCounter(NULL);
     elapsed.QuadPart = now.QuadPart - m_StartTime.QuadPart;
 
-    // Hitung bytes per detik secara akurat berdasar format stream aktual
+    // Hitung bytes per detik dan block align secara akurat berdasar format stream aktual
     ULONG bytesPerSec = 0;
-    if (m_pFormat && m_pFormat->WaveFormatExt.Format.nAvgBytesPerSec > 0) {
-        bytesPerSec = m_pFormat->WaveFormatExt.Format.nAvgBytesPerSec;
-    } else {
+    ULONG blockAlign = 4;
+    if (m_pFormat) {
+        if (m_pFormat->WaveFormatExt.Format.nAvgBytesPerSec > 0) {
+            bytesPerSec = m_pFormat->WaveFormatExt.Format.nAvgBytesPerSec;
+        }
+        if (m_pFormat->WaveFormatExt.Format.nBlockAlign > 0) {
+            blockAlign = m_pFormat->WaveFormatExt.Format.nBlockAlign;
+        }
+    }
+    if (bytesPerSec == 0) {
         bytesPerSec = DEFAULT_SAMPLE_RATE * DEFAULT_CHANNELS * (DEFAULT_CONTAINER_SIZE / 8);
+        blockAlign = DEFAULT_CHANNELS * (DEFAULT_CONTAINER_SIZE / 8);
+    }
+
+    if (m_Frequency.QuadPart == 0) {
+        KeQueryPerformanceCounter(&m_Frequency);
+        if (m_Frequency.QuadPart == 0) m_Frequency.QuadPart = 10000000;
     }
 
     ULONGLONG totalBytesStreamed = (elapsed.QuadPart * bytesPerSec) / m_Frequency.QuadPart;
 
-    pPosition->PlayOffset = totalBytesStreamed;
-    pPosition->WriteOffset = totalBytesStreamed;
+    // Selaraskan posisi ke batas audio frame (nBlockAlign) agar tidak terjadi pergeseran byte (fase/noise/kresek-kresek)
+    totalBytesStreamed = (totalBytesStreamed / blockAlign) * blockAlign;
+
+    // PlayOffset & WriteOffset pada WaveRT WAJIB merupakan byte offset di dalam circular DMA buffer (modulo buffer size)
+    ULONG dmaPos = (ULONG)(totalBytesStreamed % m_DmaBufferSize);
+    dmaPos = (dmaPos / blockAlign) * blockAlign;
+
+    pPosition->PlayOffset = dmaPos;
+    pPosition->WriteOffset = dmaPos;
 
     // Loopback transfer berdasar delta bytes aktual sejak pembacaan sebelumnya
-    // Mencegah glitch, duplikasi data, dan clock drift
-    CCircularRingBuffer* pRing = m_pMiniport->GetSharedBuffer();
-    if (pRing && m_State == KSSTATE_RUN && m_pDmaBuffer && totalBytesStreamed > m_LinearPosition) {
+    CCircularRingBuffer* pRing = m_pMiniport ? m_pMiniport->GetSharedBuffer() : NULL;
+    if (pRing && m_pDmaBuffer && totalBytesStreamed > m_LinearPosition) {
         ULONGLONG delta = totalBytesStreamed - m_LinearPosition;
-        if (delta > m_DmaBufferSize) {
-            delta = m_DmaBufferSize;
-        }
+        delta = (delta / blockAlign) * blockAlign;
 
-        ULONG prevPos = (ULONG)(m_LinearPosition % m_DmaBufferSize);
-        ULONG toTransfer = (ULONG)delta;
+        if (delta > 0) {
+            if (delta > m_DmaBufferSize) {
+                delta = m_DmaBufferSize;
+                delta = (delta / blockAlign) * blockAlign;
+            }
 
-        // Tangani pembagian chunk jika posisi melewati batas circular buffer DMA
-        if (prevPos + toTransfer <= m_DmaBufferSize) {
-            if (!m_bCapture) {
-                pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
+            ULONG prevPos = (ULONG)(m_LinearPosition % m_DmaBufferSize);
+            prevPos = (prevPos / blockAlign) * blockAlign;
+            ULONG toTransfer = (ULONG)delta;
+
+            // Tangani pembagian chunk jika posisi melewati batas circular buffer DMA
+            if (prevPos + toTransfer <= m_DmaBufferSize) {
+                if (!m_bCapture) {
+                    pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
+                } else {
+                    pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
+                }
             } else {
-                pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
+                ULONG firstChunk = m_DmaBufferSize - prevPos;
+                firstChunk = (firstChunk / blockAlign) * blockAlign;
+                ULONG secondChunk = toTransfer - firstChunk;
+                if (!m_bCapture) {
+                    pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
+                    pRing->Write((PUCHAR)m_pDmaBuffer, secondChunk);
+                } else {
+                    pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
+                    pRing->Read((PUCHAR)m_pDmaBuffer, secondChunk);
+                }
             }
-        } else {
-            ULONG firstChunk = m_DmaBufferSize - prevPos;
-            ULONG secondChunk = toTransfer - firstChunk;
-            if (!m_bCapture) {
-                pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
-                pRing->Write((PUCHAR)m_pDmaBuffer, secondChunk);
-            } else {
-                pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
-                pRing->Read((PUCHAR)m_pDmaBuffer, secondChunk);
-            }
+            m_LinearPosition += toTransfer;
         }
-        m_LinearPosition = totalBytesStreamed;
     }
 
     return STATUS_SUCCESS;
@@ -422,6 +459,7 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::AllocateAudioBuffer(
     m_DmaBufferSize = (RequestedSize + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
     m_pDmaBuffer = ExAllocatePool2(POOL_FLAG_NON_PAGED, m_DmaBufferSize, MCVAD_POOL_TAG);
     if (!m_pDmaBuffer) return STATUS_INSUFFICIENT_RESOURCES;
+    RtlZeroMemory(m_pDmaBuffer, m_DmaBufferSize);
 
     m_pDmaMdl = IoAllocateMdl(m_pDmaBuffer, m_DmaBufferSize, FALSE, FALSE, NULL);
     if (!m_pDmaMdl) {

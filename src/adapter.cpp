@@ -90,6 +90,11 @@ static VOID McvadDiagFlush(VOID) {
         g_DiagCount * sizeof(MCVAD_DIAG_RECORD));
 }
 
+// Handler asli PortCls yang disimpan saat DriverEntry
+static PDRIVER_DISPATCH g_pfnPortClsCreateClose = NULL;
+static PDRIVER_DISPATCH g_pfnPortClsDeviceControl = NULL;
+static PDRIVER_UNLOAD   g_pfnPortClsUnload = NULL;
+
 // Prototipe IOCTL Dispatcher
 NTSTATUS McvadCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp);
@@ -104,7 +109,19 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Reg
     PAGED_CODE();
     KdPrint(("[MCVAD] DriverEntry: Menginisialisasi All-in-One Multi Virtual Cable\n"));
 
-    // Buat Control Device Object untuk komunikasi IOCTL dengan Control Panel GUI
+    // 1. Inisialisasi adapter PortCls terlebih dahulu agar PortCls mendaftarkan dispatch handler dasarnya
+    NTSTATUS ntStatus = PcInitializeAdapterDriver(
+        DriverObject,
+        RegistryPath,
+        (PDRIVER_ADD_DEVICE)AddDevice
+    );
+
+    if (!NT_SUCCESS(ntStatus)) {
+        KdPrint(("[MCVAD] PcInitializeAdapterDriver gagal: 0x%08X\n", ntStatus));
+        return ntStatus;
+    }
+
+    // 2. Buat Control Device Object untuk komunikasi IOCTL dengan Control Panel GUI
     UNICODE_STRING devName, symName;
     RtlInitUnicodeString(&devName, MCVAD_DEVICE_NAME);
     RtlInitUnicodeString(&symName, MCVAD_SYMBOLIC_NAME);
@@ -123,20 +140,25 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Reg
         status = IoCreateSymbolicLink(&symName, &devName);
         if (NT_SUCCESS(status)) {
             KdPrint(("[MCVAD] Control device object created successfully\n"));
+        } else {
+            KdPrint(("[MCVAD] IoCreateSymbolicLink gagal: 0x%08X\n", status));
+            IoDeleteDevice(g_pControlDeviceObject);
+            g_pControlDeviceObject = NULL;
         }
+    } else {
+        KdPrint(("[MCVAD] IoCreateDevice untuk control device gagal: 0x%08X\n", status));
     }
 
+    // 3. Simpan dispatch routine asli dari PortCls
+    g_pfnPortClsCreateClose = DriverObject->MajorFunction[IRP_MJ_CREATE];
+    g_pfnPortClsDeviceControl = DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL];
+    g_pfnPortClsUnload = DriverObject->DriverUnload;
+
+    // 4. Pasang hook wrapper MCVAD untuk memisahkan IRP Control Device vs PortCls
     DriverObject->MajorFunction[IRP_MJ_CREATE] = McvadCreateClose;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = McvadCreateClose;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = McvadDeviceControl;
     DriverObject->DriverUnload = DriverUnload;
-
-    // Inisialisasi adapter PortCls
-    NTSTATUS ntStatus = PcInitializeAdapterDriver(
-        DriverObject,
-        RegistryPath,
-        (PDRIVER_ADD_DEVICE)AddDevice
-    );
 
     return ntStatus;
 }
@@ -145,7 +167,6 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Reg
 #pragma code_seg("PAGE")
 VOID DriverUnload(PDRIVER_OBJECT DriverObject) {
     PAGED_CODE();
-    UNREFERENCED_PARAMETER(DriverObject);
     UNICODE_STRING symName;
     RtlInitUnicodeString(&symName, MCVAD_SYMBOLIC_NAME);
     IoDeleteSymbolicLink(&symName);
@@ -153,20 +174,44 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject) {
         IoDeleteDevice(g_pControlDeviceObject);
         g_pControlDeviceObject = NULL;
     }
+    if (g_pfnPortClsUnload) {
+        g_pfnPortClsUnload(DriverObject);
+    }
 }
 
 NTSTATUS McvadCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
     PAGED_CODE();
-    UNREFERENCED_PARAMETER(DeviceObject);
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    Irp->IoStatus.Information = 0;
+
+    // Jika target adalah Control Device Object kita, selesaikan langsung
+    if (DeviceObject == g_pControlDeviceObject) {
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+        Irp->IoStatus.Information = 0;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return STATUS_SUCCESS;
+    }
+
+    // Jika target adalah audio subdevice PortCls, teruskan ke dispatcher asli PortCls
+    if (g_pfnPortClsCreateClose) {
+        return g_pfnPortClsCreateClose(DeviceObject, Irp);
+    }
+
+    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
     PAGED_CODE();
-    UNREFERENCED_PARAMETER(DeviceObject);
+
+    // Jika target BUKAN Control Device Object kita, teruskan ke PortCls (properti KS dll)
+    if (DeviceObject != g_pControlDeviceObject) {
+        if (g_pfnPortClsDeviceControl) {
+            return g_pfnPortClsDeviceControl(DeviceObject, Irp);
+        }
+        Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
 
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
