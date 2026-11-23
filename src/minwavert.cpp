@@ -78,13 +78,13 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRT::NewStream(
     if (!ppStream || !DataFormat) return STATUS_INVALID_PARAMETER;
 
     // Bridge pins (Pin 1 & 2) tidak mendukung stream creation
-    if (Pin == PIN_WAVE_RENDER_SOURCE || Pin == PIN_WAVE_CAPTURE_SOURCE) {
+    if (Pin == PIN_WAVE_RENDER_SOURCE || Pin == PIN_WAVE_CAPTURE_SINK) {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
     if (Pin == PIN_WAVE_RENDER_SINK) {
         Capture = FALSE;
-    } else if (Pin == PIN_WAVE_CAPTURE_SINK) {
+    } else if (Pin == PIN_WAVE_CAPTURE_SOURCE) {
         Capture = TRUE;
     } else {
         return STATUS_INVALID_PARAMETER;

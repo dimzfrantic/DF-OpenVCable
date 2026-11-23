@@ -3,7 +3,7 @@ Signature="$WINDOWS NT$"
 Class=MEDIA
 ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
 Provider=%ProviderName%
-DriverVer=11/23/2026,1.0.0.2
+DriverVer=11/23/2026,1.0.0.3
 CatalogFile=mcvad.cat
 PnpLockdown=1
 
