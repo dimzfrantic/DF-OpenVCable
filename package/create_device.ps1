@@ -5,7 +5,8 @@
 #>
 
 param (
-    [switch]$Remove
+    [switch]$Remove,
+    [switch]$Cleanup
 )
 
 $Source = @"
@@ -98,6 +99,29 @@ public class DeviceInstaller {
         return true;
     }
 
+    public static int CountRootDevices(Guid classGuid, string hardwareId) {
+        IntPtr devInfoSet = SetupDiGetClassDevs(ref classGuid, IntPtr.Zero, IntPtr.Zero, DIGCF_ALLCLASSES);
+        if (devInfoSet == (IntPtr)(-1) || devInfoSet == IntPtr.Zero) return -1;
+
+        SP_DEVINFO_DATA devInfoData = new SP_DEVINFO_DATA();
+        devInfoData.cbSize = Marshal.SizeOf(devInfoData);
+        int index = 0;
+        int count = 0;
+
+        while (SetupDiEnumDeviceInfo(devInfoSet, index++, ref devInfoData)) {
+            byte[] buffer = new byte[512];
+            int regType = 0;
+            int requiredSize = 0;
+            if (SetupDiGetDeviceRegistryProperty(devInfoSet, ref devInfoData, SPDRP_HARDWAREID, out regType, buffer, buffer.Length, out requiredSize)) {
+                string curHwId = Encoding.Unicode.GetString(buffer, 0, requiredSize).TrimEnd('\0');
+                if (curHwId.IndexOf(hardwareId, StringComparison.OrdinalIgnoreCase) >= 0) count++;
+            }
+        }
+
+        SetupDiDestroyDeviceInfoList(devInfoSet);
+        return count;
+    }
+
     public static bool RemoveRootDevice(Guid classGuid, string hardwareId) {
         IntPtr devInfoSet = SetupDiGetClassDevs(ref classGuid, IntPtr.Zero, IntPtr.Zero, DIGCF_ALLCLASSES);
         if (devInfoSet == (IntPtr)(-1)) return false;
@@ -134,7 +158,7 @@ $DeviceDesc = "DF-OpenVCable Virtual Audio Adapter"
 $InfPath = Join-Path $PSScriptRoot "mcvad.inf"
 
 if ($Remove) {
-    Write-Host "[MCVAD] Menghapus root device node: $HardwareId..." -ForegroundColor Yellow
+    Write-Host "[MCVAD] Menghapus SEMUA root device node: $HardwareId..." -ForegroundColor Yellow
     $res = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
     if ($res) {
         Write-Host "[MCVAD] Device node berhasil dihapus dari Device Manager." -ForegroundColor Green
@@ -142,14 +166,38 @@ if ($Remove) {
         Write-Host "[MCVAD] Tidak ditemukan device node $HardwareId." -ForegroundColor Gray
     }
 } else {
-    Write-Host "[MCVAD] Mendaftarkan root device node: $HardwareId..." -ForegroundColor Cyan
-    $errDetail = [string]::Empty
-    $res = [DeviceInstaller]::CreateRootDevice($MediaClassGuid, $HardwareId, $DeviceDesc, $InfPath, [ref]$errDetail)
-    if ($res) {
-        Write-Host "[MCVAD] Root device node berhasil dibuat di Device Manager!" -ForegroundColor Green
-        Write-Host "[MCVAD] Memindai perangkat PnP baru..." -ForegroundColor Gray
+    # Idempotensi: jangan buat devnode baru kalau sudah ada.
+    # Tanpa ini, setiap kali installer dijalankan akan muncul instance duplikat
+    # (ROOT\MEDIA\0004, 0005, 0006, ...) yang membuat AudioEndpointBuilder bingung.
+    $existing = [DeviceInstaller]::CountRootDevices($MediaClassGuid, $HardwareId)
+    if ($existing -lt 0) { $existing = 0 }
+
+    if ($Cleanup -and $existing -gt 0) {
+        Write-Host "[MCVAD] Cleanup: menghapus $existing devnode duplikat..." -ForegroundColor Yellow
+        $null = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
+        Start-Sleep -Milliseconds 800
+        $existing = 0
+    }
+
+    if ($existing -eq 0) {
+        Write-Host "[MCVAD] Mendaftarkan root device node: $HardwareId..." -ForegroundColor Cyan
+        $errDetail = [string]::Empty
+        $res = [DeviceInstaller]::CreateRootDevice($MediaClassGuid, $HardwareId, $DeviceDesc, $InfPath, [ref]$errDetail)
+        if ($res) {
+            Write-Host "[MCVAD] Root device node berhasil dibuat di Device Manager!" -ForegroundColor Green
+            Write-Host "[MCVAD] Memindai perangkat PnP baru..." -ForegroundColor Gray
+            & pnputil /scan-devices | Out-Null
+        } else {
+            Write-Host "[MCVAD] Gagal membuat device node: $errDetail" -ForegroundColor Yellow
+        }
+    } elseif ($existing -eq 1) {
+        Write-Host "[MCVAD] Devnode sudah ada (1 instance) - tidak membuat duplikat." -ForegroundColor Green
+        Write-Host "[MCVAD] Memindai ulang perangkat PnP..." -ForegroundColor Gray
         & pnputil /scan-devices | Out-Null
     } else {
-        Write-Host "[MCVAD] Gagal membuat device node: $errDetail" -ForegroundColor Yellow
+        Write-Host "[MCVAD] PERINGATAN: ditemukan $existing devnode duplikat untuk $HardwareId." -ForegroundColor Yellow
+        Write-Host "        Jalankan ulang dengan -Cleanup untuk merapikan menjadi 1 instance:" -ForegroundColor Yellow
+        Write-Host "        powershell -ExecutionPolicy Bypass -File create_device.ps1 -Cleanup" -ForegroundColor Gray
+        & pnputil /scan-devices | Out-Null
     }
 }
