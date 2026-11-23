@@ -244,6 +244,7 @@ jobs:
           New-Item -ItemType Directory -Path "$pkg/docs" -Force | Out-Null
           Copy-Item tests/mcvad_selftest.ps1 $pkg/tests/ -Force
           Copy-Item tests/audio_loopback.ps1 $pkg/tests/ -Force
+          Copy-Item tests/diagnose_startdevice.ps1 $pkg/tests/ -Force
           Copy-Item docs/VALIDATION.md $pkg/docs/ -Force
 
           # Verifikasi isi paket sebelum dikemas (fail-fast jika artefak utama hilang)
