@@ -26,7 +26,7 @@ echo.
 
 if not exist "%~dp0mcvad.inf" (
     echo [ERROR] mcvad.inf tidak ditemukan di folder ini.
-    echo         Jalankan update_driver.bat dari folder paket (AIR).
+    echo         Jalankan update_driver.bat dari folder paket AIR.
     pause & exit /b 1
 )
 if not exist "%~dp0mcvad.sys" (
