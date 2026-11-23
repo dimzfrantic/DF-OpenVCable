@@ -15,7 +15,7 @@ cd /d "%~dp0"
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo [INFO] Meminta hak Administrator...
-    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/k `"%~f0`"' -Verb RunAs"
     exit /b 0
 )
 
