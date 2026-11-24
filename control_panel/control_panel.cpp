@@ -195,7 +195,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SendMessage(g_hLblActivity, WM_SETFONT, (WPARAM)hFont, TRUE);
 
         // Buka handle ke driver kontrol
-        g_hDevice = CreateFile(MCVAD_USERMODE_NAME, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        g_hDevice = CreateFile(MCVAD_USERMODE_DEVICE_PATH, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
         if (g_hDevice == INVALID_HANDLE_VALUE) {
             SetWindowText(g_hLblStatus, L"State: Driver not detected (device handle unavailable)");
         } else {
