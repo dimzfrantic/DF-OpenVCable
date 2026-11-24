@@ -172,7 +172,7 @@ function Clean-AudioEndpointCache {
             if ($props) {
                 foreach ($prop in $props.PSObject.Properties) {
                     $val = $prop.Value
-                    if ($val -is [string] -and ($val -match "MCVAD" -or $val -match "OpenVCable" -or $val -match "ROOT\\MEDIA")) {
+                    if ($val -is [string] -and ($val -match "MCVAD" -or $val -match "OpenVCable" -or $val -match "ROOT\\MCVAD")) {
                         $isMcvad = $true
                         break
                     }
@@ -181,10 +181,10 @@ function Clean-AudioEndpointCache {
 
             if ($isMcvad) {
                 try {
-                    Remove-Item -Path $ep.PSPath -Recurse -Force -ErrorAction Stop
+                    Remove-Item -Path $ep.PSPath -Recurse -Force -ErrorAction SilentlyContinue
                     $removedCount++
                 } catch {
-                    Write-Host "      [WARN] Gagal menghapus $($ep.PSChildName): $_" -ForegroundColor Yellow
+                    # Key MMDevices diproteksi ACL Windows (SYSTEM/AudioEndpointBuilder)
                 }
             }
         }

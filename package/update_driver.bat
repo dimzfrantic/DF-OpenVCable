@@ -48,7 +48,7 @@ pnputil /add-driver "%~dp0mcvad.inf" /install
 echo       pnputil exit code: %ERRORLEVEL%
 
 echo.
-echo [3/5] Merapikan devnode ROOT\MCVAD & cache registri MMDevices...
+echo [3/5] Merapikan devnode ROOT\MCVAD ^& cache registri MMDevices...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0create_device.ps1" -Cleanup
 
 echo.
