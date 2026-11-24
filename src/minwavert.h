@@ -72,6 +72,7 @@ class CMiniportWaveRT :
 private:
     ULONG                   m_CableIndex;
     CCircularRingBuffer*    m_pSharedBuffer;
+    BOOLEAN*                m_pbEnabled;
     PPORTWAVERT             m_pPort;
 
 public:
@@ -80,7 +81,7 @@ public:
     CMiniportWaveRT(PUNKNOWN pUnknownOuter);
     ~CMiniportWaveRT();
 
-    NTSTATUS Init(ULONG CableIndex, CCircularRingBuffer* pSharedBuffer);
+    NTSTATUS Init(ULONG CableIndex, CCircularRingBuffer* pSharedBuffer, BOOLEAN* pbEnabled = NULL);
 
     // IMiniport methods
     STDMETHODIMP_(NTSTATUS) GetDescription(PPCFILTER_DESCRIPTOR* ppFilterDescriptor);
@@ -100,10 +101,11 @@ public:
         PPORTWAVERTSTREAM       PortStream,
         ULONG                   Pin,
         BOOLEAN                 Capture,
-        PKSDATAFORMAT           DataFormat
+        PKSDATARANGE            DataFormat
     );
     STDMETHODIMP_(NTSTATUS) GetDeviceDescription(PDEVICE_DESCRIPTION pDeviceDescription);
 
     CCircularRingBuffer*    GetSharedBuffer() const { return m_pSharedBuffer; }
     ULONG                   GetCableIndex() const { return m_CableIndex; }
+    BOOLEAN                 IsCableEnabled() const { return m_pbEnabled ? *m_pbEnabled : TRUE; }
 };

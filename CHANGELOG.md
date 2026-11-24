@@ -1,5 +1,22 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.0.6] - 2026-11-24
+
+### Fixed
+- **Endpoint audio duplikat 2x di Sound Settings** (`package/mcvad.inf`): setiap kabel mendaftarkan **dua** device interface `KSCATEGORY_AUDIO` — WaveRT (`CableX`) dan Topology (`CableX_Topo`). AudioEndpointBuilder menghitung setiap interface `KSCATEGORY_AUDIO` sebagai satu "audio device" lalu membuat endpoint dari bridge pin topology, sehingga setiap kabel muncul dua kali: 10 endpoint Render + 10 endpoint Capture, padahal seharusnya 5 + 5. Registrasi `KSCATEGORY_AUDIO` untuk subdevice Topology dihapus; pola yang dipakai sekarang mengikuti Microsoft ("Installing Device Interfaces for an Audio Adapter"): `KSCATEGORY_AUDIO`/`KSCATEGORY_RENDER`/`KSCATEGORY_CAPTURE` → subdevice Wave, `KSCATEGORY_TOPOLOGY` → subdevice Topology.
+- **Filter topology mendeklarasikan `KSCATEGORY_AUDIO`** (`src/mintopo.cpp`): sumber kedua registrasi interface audio ganda per kabel. Daftar category filter kini hanya `KSCATEGORY_TOPOLOGY`, sesuai sample WDK `sysvad` (filter descriptor topology: `CategoryCount = 0`).
+- **Nama endpoint Render jatuh ke "Speakers"** (`src/mintopo.cpp`): bridge pin endpoint memakai GUID custom sebagai *Category*, sehingga AudioEndpointBuilder tidak dapat menentukan tipe endpoint dan memakai nama form-factor default. Sekarang *Category* = `KSNODETYPE_SPEAKER` / `KSNODETYPE_MICROPHONE`, sedangkan GUID `PINNAME_MCVAD_CABLE_*` dipakai sebagai *Name* sehingga nama endpoint dibaca dari `MediaCategories` ("DF-OpenVCable A" s/d "DF-OpenVCable E"). Pola ini mengikuti sample WDK `sysvad` (`EndpointsCommon/*toptable.h`).
+
+### Changed
+- **`create_device.ps1`**:
+  - Enumerasi endpoint kini presisi lewat `DEVPKEY_Device_HardwareIds = ROOT\MCVAD` (sebelumnya mencocokkan string "MCVAD"/"OpenVCable" di semua value properti, berisiko salah tangkap endpoint driver lain).
+  - Mode baru `-Verify`: laporan read-only jumlah endpoint Render/Capture beserta status ACTIVE/stale, tanpa mengubah apa pun.
+  - Ringkasan endpoint otomatis ditampilkan setelah install/cleanup, dengan target 5 Render + 5 Capture.
+  - Cache MMDevices dibersihkan **setelah** devnode dihapus (kalau dibersihkan lebih dulu, AudioEndpointBuilder membuat ulang entry dari devnode yang masih hidup), ditambah fallback `pnputil /remove-device` untuk instance yang tertinggal.
+  - Catatan ACL: `BUILTIN\Administrators` hanya punya `SetValue`/`ReadKey` pada key MMDevices (tanpa `Delete`), jadi penghapusan cache bersifat best-effort. Entry sisa berstatus `NOTPRESENT` dan tidak tampil di Sound Settings.
+- **`update_driver.bat`**: menampilkan verifikasi jumlah endpoint (target 5 Render + 5 Capture) di akhir proses update.
+- **DriverVer**: `1.0.0.5` → `1.0.0.6` (11/24/2026) agar paket baru benar-benar menggantikan driver lama di DriverStore.
+
 ## [1.0.0] - 2026-11-19
 ### Added
 - **Harness validasi (`tests/`)**:

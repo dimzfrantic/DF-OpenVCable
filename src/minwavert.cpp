@@ -26,6 +26,7 @@ CMiniportWaveRT::CMiniportWaveRT(PUNKNOWN pUnknownOuter) :
     CUnknown(pUnknownOuter),
     m_CableIndex(0),
     m_pSharedBuffer(NULL),
+    m_pbEnabled(NULL),
     m_pPort(NULL)
 {
     PAGED_CODE();
@@ -39,10 +40,11 @@ CMiniportWaveRT::~CMiniportWaveRT() {
     }
 }
 
-NTSTATUS CMiniportWaveRT::Init(ULONG CableIndex, CCircularRingBuffer* pSharedBuffer) {
+NTSTATUS CMiniportWaveRT::Init(ULONG CableIndex, CCircularRingBuffer* pSharedBuffer, BOOLEAN* pbEnabled) {
     PAGED_CODE();
     m_CableIndex = CableIndex;
     m_pSharedBuffer = pSharedBuffer;
+    m_pbEnabled = pbEnabled;
     return STATUS_SUCCESS;
 }
 
@@ -422,22 +424,37 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPosition(KSAUDIO_POSITION* pPo
             ULONG toTransfer = (ULONG)delta;
 
             // Tangani pembagian chunk jika posisi melewati batas circular buffer DMA
+            BOOLEAN bCableActive = m_pMiniport ? m_pMiniport->IsCableEnabled() : TRUE;
+
             if (prevPos + toTransfer <= m_DmaBufferSize) {
                 if (!m_bCapture) {
-                    pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
+                    if (bCableActive) {
+                        pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
+                    }
                 } else {
-                    pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
+                    if (bCableActive) {
+                        pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
+                    } else {
+                        RtlZeroMemory((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
+                    }
                 }
             } else {
                 ULONG firstChunk = m_DmaBufferSize - prevPos;
                 firstChunk = (firstChunk / blockAlign) * blockAlign;
                 ULONG secondChunk = toTransfer - firstChunk;
                 if (!m_bCapture) {
-                    pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
-                    pRing->Write((PUCHAR)m_pDmaBuffer, secondChunk);
+                    if (bCableActive) {
+                        pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
+                        pRing->Write((PUCHAR)m_pDmaBuffer, secondChunk);
+                    }
                 } else {
-                    pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
-                    pRing->Read((PUCHAR)m_pDmaBuffer, secondChunk);
+                    if (bCableActive) {
+                        pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
+                        pRing->Read((PUCHAR)m_pDmaBuffer, secondChunk);
+                    } else {
+                        RtlZeroMemory((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
+                        RtlZeroMemory((PUCHAR)m_pDmaBuffer, secondChunk);
+                    }
                 }
             }
             m_LinearPosition += toTransfer;

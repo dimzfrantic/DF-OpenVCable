@@ -24,8 +24,8 @@
 // Struktur konfigurasi dan status kabel virtual (kompatibel user-mode & kernel-mode)
 #pragma pack(push, 1)
 typedef struct _MCVAD_CABLE_INFO {
-    ULONG       CableIndex;            // 0=1, 1=A, 2=B, 3=C, 4=D
-    WCHAR       Name[64];              // e.g. "Virtual Audio Cable A"
+    ULONG       CableIndex;            // 0=A, 1=B, 2=C, 3=D, 4=E
+    WCHAR       Name[64];              // e.g. "DF-OpenVCable A"
     ULONG       SampleRate;            // 44100, 48000, 96000, 192000
     ULONG       BitsPerSample;         // 16, 24, 32
     ULONG       Channels;              // 2 (Stereo), 4 (Quad), 6 (5.1), 8 (7.1)
@@ -36,6 +36,7 @@ typedef struct _MCVAD_CABLE_INFO {
     ULONG       UnderrunCount;         // Frekuensi glitch/silence karena buffer kosong
     BOOLEAN     IsRenderActive;        // Apakah ada aplikasi yang sedang play audio
     BOOLEAN     IsCaptureActive;       // Apakah ada aplikasi yang sedang record/listen
+    BOOLEAN     IsEnabled;             // Status aktif kabel virtual (TRUE = aktif, FALSE = disable)
 } MCVAD_CABLE_INFO, *PMCVAD_CABLE_INFO;
 
 typedef struct _MCVAD_ALL_STATUS {
@@ -48,5 +49,6 @@ typedef struct _MCVAD_SET_CONFIG_REQ {
     ULONG       CableIndex;
     ULONG       SampleRate;            // Nilai baru (0 = tidak diubah)
     ULONG       BufferDurationMs;      // Nilai baru (0 = tidak diubah)
+    LONG        EnableState;           // -1 = tidak diubah, 0 = Disable, 1 = Enable
 } MCVAD_SET_CONFIG_REQ, *PMCVAD_SET_CONFIG_REQ;
 #pragma pack(pop)

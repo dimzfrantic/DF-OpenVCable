@@ -33,41 +33,53 @@ static const PKSDATARANGE g_TopoBridgeRangePtrs[] = {
 };
 
 // 4 Pin Descriptor untuk Topology Filter per Virtual Cable
+//
+// Pin 0 dan 3 adalah bridge ke WaveRT (KSCATEGORY_AUDIO, tanpa nama) — bukan endpoint.
+// Pin 1 dan 2 adalah bridge pin endpoint fisik:
+//   Category : KSNODETYPE_SPEAKER / KSNODETYPE_MICROPHONE, agar AudioEndpointBuilder
+//              mengenali tipe endpoint (ikon + form factor di Sound Settings).
+//   Name     : GUID custom yang dipetakan ke "DF-OpenVCable A" s/d "DF-OpenVCable E"
+//              lewat HKLM\...\Control\MediaCategories (lihat [MCVAD_Device.AddReg] di INF).
+//
+// Catatan: memakai GUID custom sebagai Category (seperti versi sebelumnya) membuat
+// AudioEndpointBuilder tidak bisa menentukan tipe endpoint sehingga nama endpoint
+// jatuh ke default form factor ("Speakers"). Pola di bawah mengikuti sample resmi WDK
+// sysvad (EndpointsCommon/*toptable.h).
 static const PCPIN_DESCRIPTOR g_TopoPins_Cable[MAX_CABLES][4] = {
     // Cable A
     {
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker, &PINNAME_MCVAD_CABLE_A_RENDER, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_A_CAPTURE, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } }
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker,    &PINNAME_MCVAD_CABLE_A_RENDER, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_A_CAPTURE, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } }
     },
     // Cable B
     {
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker, &PINNAME_MCVAD_CABLE_B_RENDER, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_B_CAPTURE, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } }
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker,    &PINNAME_MCVAD_CABLE_B_RENDER, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_B_CAPTURE, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } }
     },
     // Cable C
     {
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker, &PINNAME_MCVAD_CABLE_C_RENDER, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_C_CAPTURE, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } }
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker,    &PINNAME_MCVAD_CABLE_C_RENDER, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_C_CAPTURE, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } }
     },
     // Cable D
     {
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker, &PINNAME_MCVAD_CABLE_D_RENDER, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_D_CAPTURE, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } }
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker,    &PINNAME_MCVAD_CABLE_D_RENDER, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_D_CAPTURE, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } }
     },
     // Cable E
     {
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker, &PINNAME_MCVAD_CABLE_E_RENDER, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_E_CAPTURE, 0 } },
-        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } }
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker,    &PINNAME_MCVAD_CABLE_E_RENDER, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN,  KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &PINNAME_MCVAD_CABLE_E_CAPTURE, 0 } },
+        { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO,       NULL,                          0 } }
     }
 };
 
@@ -79,9 +91,14 @@ static const PCCONNECTION_DESCRIPTOR g_TopoConnections[] = {
     { PCFILTER_NODE, PIN_TOPO_MIC_BRIDGE,   PCFILTER_NODE, PIN_TOPO_WAVEIN_SOURCE }
 };
 
+// Filter topology TIDAK mendeklarasikan KSCATEGORY_AUDIO.
+// Kalau dideklarasikan, PortCls/INF mendaftarkan filter topology sebagai device
+// interface audio kedua per kabel ("CableX_Topo"), dan AudioEndpointBuilder lalu
+// membuat satu set endpoint tambahan dari pin yang sama -> endpoint duplikat 2x
+// di Sound Settings. Registrasi yang benar: KSCATEGORY_TOPOLOGY saja, sesuai
+// sample WDK sysvad (filter descriptor topology: CategoryCount = 0).
 static const GUID g_TopoCategories[] = {
-    { STATICGUIDOF(KSCATEGORY_TOPOLOGY) },
-    { STATICGUIDOF(KSCATEGORY_AUDIO) }
+    { STATICGUIDOF(KSCATEGORY_TOPOLOGY) }
 };
 
 static const PCFILTER_DESCRIPTOR g_TopoFilterDescriptors[MAX_CABLES] = {

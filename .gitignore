@@ -15,6 +15,9 @@ AIR/*.zip
 AIR/latest.zip
 AIR/_STALE_*
 
+# Arsip rilis yang terunduh ke root repo
+/DF-OpenVCable-v*.zip
+
 # Sisa ekstraksi folder paket (mis. AIR/DF-OpenVCable-v1.0.0-x64/)
 AIR/*_package_*
 AIR/DF-OpenVCable-*

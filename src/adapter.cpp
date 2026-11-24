@@ -236,6 +236,7 @@ NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
                     pStatus->Cables[i].BitsPerSample = DEFAULT_BITS_PER_SAMPLE;
                     pStatus->Cables[i].Channels = DEFAULT_CHANNELS;
                     pStatus->Cables[i].BufferDurationMs = g_ConfiguredBufferMs[i];
+                    pStatus->Cables[i].IsEnabled = g_Cables[i].bEnabled;
                     if (g_Cables[i].pSharedBuffer) {
                         pStatus->Cables[i].BufferSizeBytes = g_Cables[i].pSharedBuffer->GetBufferSize();
                         pStatus->Cables[i].CurrentBufferFill = g_Cables[i].pSharedBuffer->GetDataAvailable();
@@ -256,6 +257,16 @@ NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
                 PMCVAD_SET_CONFIG_REQ pReq = (PMCVAD_SET_CONFIG_REQ)pBuffer;
                 if (pReq->CableIndex < MAX_CABLES) {
                     ULONG idx = pReq->CableIndex;
+
+                    // Perbarui status Enable jika diminta
+                    if (pReq->EnableState == 0) {
+                        g_Cables[idx].bEnabled = FALSE;
+                        KdPrint(("[MCVAD] Cable %u Disabled\n", idx));
+                    } else if (pReq->EnableState == 1) {
+                        g_Cables[idx].bEnabled = TRUE;
+                        KdPrint(("[MCVAD] Cable %u Enabled\n", idx));
+                    }
+
                     if (pReq->SampleRate >= 44100 && pReq->SampleRate <= 192000) {
                         g_ConfiguredSampleRate[idx] = pReq->SampleRate;
                     }
@@ -326,6 +337,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
         g_Cables[i].Name = g_CableNames[i];
         g_Cables[i].SubdeviceName = g_CableSubdeviceNames[i];
         g_Cables[i].TopoSubdeviceName = g_CableTopoSubdeviceNames[i];
+        g_Cables[i].bEnabled = TRUE;
 
         // 1. Alokasi Ring Buffer terpisah untuk tiap kabel agar tidak bercampur
         g_Cables[i].pSharedBuffer = new (NonPagedPoolNx, MCVAD_POOL_TAG) CCircularRingBuffer();
@@ -337,7 +349,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
         CMiniportWaveRT* pMiniportWave = new (NonPagedPoolNx, MCVAD_POOL_TAG) CMiniportWaveRT(NULL);
         if (!pMiniportWave) continue;
         pMiniportWave->AddRef();
-        pMiniportWave->Init(i, g_Cables[i].pSharedBuffer);
+        pMiniportWave->Init(i, g_Cables[i].pSharedBuffer, &g_Cables[i].bEnabled);
 
         // 3. Buat Port WaveRT
         PPORTWAVERT pPortWave = NULL;

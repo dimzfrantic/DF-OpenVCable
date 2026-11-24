@@ -3,7 +3,7 @@ Signature="$WINDOWS NT$"
 Class=MEDIA
 ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
 Provider=%ProviderName%
-DriverVer=11/23/2026,1.0.0.5
+DriverVer=11/24/2026,1.0.0.6
 CatalogFile=mcvad.cat
 PnpLockdown=1
 
@@ -69,14 +69,25 @@ HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_CAPTURE%,Name,,%CableE.Desc%
 HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_CAPTURE%,Display,1,00,00,00,00
 
 [MCVAD_Device.NT.Interfaces]
-; Daftarkan 5 pasang Virtual Audio Interface (Render & Capture) + Topology
+; Satu kabel = SATU device interface audio.
+;
+; Aturan (Microsoft, "Installing Device Interfaces for an Audio Adapter"):
+;   KSCATEGORY_AUDIO    -> reference string subdevice Wave (host streaming)
+;   KSCATEGORY_RENDER   -> reference string subdevice Wave
+;   KSCATEGORY_CAPTURE  -> reference string subdevice Wave
+;   KSCATEGORY_TOPOLOGY -> reference string subdevice Topology
+;
+; JANGAN menambahkan KSCATEGORY_AUDIO untuk subdevice Topology ("CableX_Topo").
+; AudioEndpointBuilder menghitung setiap interface KSCATEGORY_AUDIO sebagai satu
+; "audio device", lalu membuat endpoint dari bridge pin topology untuk masing-masing.
+; Mendaftarkan Wave + Topology sebagai KSCATEGORY_AUDIO membuat setiap kabel muncul
+; DUA KALI di Sound Settings (10 endpoint render + 10 capture, seharusnya 5 + 5).
 
 ; Cable A
 AddInterface=%KSCATEGORY_AUDIO%,"CableA",MCVAD.Interface.CableA
 AddInterface=%KSCATEGORY_RENDER%,"CableA",MCVAD.Interface.CableA
 AddInterface=%KSCATEGORY_CAPTURE%,"CableA",MCVAD.Interface.CableA
 AddInterface=%KSCATEGORY_REALTIME%,"CableA",MCVAD.Interface.CableA
-AddInterface=%KSCATEGORY_AUDIO%,"CableA_Topo",MCVAD.Interface.CableA_Topo
 AddInterface=%KSCATEGORY_TOPOLOGY%,"CableA_Topo",MCVAD.Interface.CableA_Topo
 
 ; Cable B
@@ -84,7 +95,6 @@ AddInterface=%KSCATEGORY_AUDIO%,"CableB",MCVAD.Interface.CableB
 AddInterface=%KSCATEGORY_RENDER%,"CableB",MCVAD.Interface.CableB
 AddInterface=%KSCATEGORY_CAPTURE%,"CableB",MCVAD.Interface.CableB
 AddInterface=%KSCATEGORY_REALTIME%,"CableB",MCVAD.Interface.CableB
-AddInterface=%KSCATEGORY_AUDIO%,"CableB_Topo",MCVAD.Interface.CableB_Topo
 AddInterface=%KSCATEGORY_TOPOLOGY%,"CableB_Topo",MCVAD.Interface.CableB_Topo
 
 ; Cable C
@@ -92,7 +102,6 @@ AddInterface=%KSCATEGORY_AUDIO%,"CableC",MCVAD.Interface.CableC
 AddInterface=%KSCATEGORY_RENDER%,"CableC",MCVAD.Interface.CableC
 AddInterface=%KSCATEGORY_CAPTURE%,"CableC",MCVAD.Interface.CableC
 AddInterface=%KSCATEGORY_REALTIME%,"CableC",MCVAD.Interface.CableC
-AddInterface=%KSCATEGORY_AUDIO%,"CableC_Topo",MCVAD.Interface.CableC_Topo
 AddInterface=%KSCATEGORY_TOPOLOGY%,"CableC_Topo",MCVAD.Interface.CableC_Topo
 
 ; Cable D
@@ -100,7 +109,6 @@ AddInterface=%KSCATEGORY_AUDIO%,"CableD",MCVAD.Interface.CableD
 AddInterface=%KSCATEGORY_RENDER%,"CableD",MCVAD.Interface.CableD
 AddInterface=%KSCATEGORY_CAPTURE%,"CableD",MCVAD.Interface.CableD
 AddInterface=%KSCATEGORY_REALTIME%,"CableD",MCVAD.Interface.CableD
-AddInterface=%KSCATEGORY_AUDIO%,"CableD_Topo",MCVAD.Interface.CableD_Topo
 AddInterface=%KSCATEGORY_TOPOLOGY%,"CableD_Topo",MCVAD.Interface.CableD_Topo
 
 ; Cable E
@@ -108,7 +116,6 @@ AddInterface=%KSCATEGORY_AUDIO%,"CableE",MCVAD.Interface.CableE
 AddInterface=%KSCATEGORY_RENDER%,"CableE",MCVAD.Interface.CableE
 AddInterface=%KSCATEGORY_CAPTURE%,"CableE",MCVAD.Interface.CableE
 AddInterface=%KSCATEGORY_REALTIME%,"CableE",MCVAD.Interface.CableE
-AddInterface=%KSCATEGORY_AUDIO%,"CableE_Topo",MCVAD.Interface.CableE_Topo
 AddInterface=%KSCATEGORY_TOPOLOGY%,"CableE_Topo",MCVAD.Interface.CableE_Topo
 
 ; --- Interface AddReg Sections ---
@@ -176,7 +183,7 @@ ServiceBinary  = %13%\mcvad.sys
 ProviderName        = "dimzfrantic"
 ManufacturerName    = "DF-OpenVCable Project"
 DiskDescription     = "DF-OpenVCable Driver Disk"
-DeviceDesc          = "DF-OpenVCable Virtual Audio Adapter"
+DeviceDesc          = "DF-OpenVCable"
 MCVAD.SvcDesc       = "DF-OpenVCable Virtual Audio Service"
 
 CableA.Desc         = "DF-OpenVCable A"

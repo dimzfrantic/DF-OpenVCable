@@ -6,7 +6,10 @@
 
 param (
     [switch]$Remove,
-    [switch]$Cleanup
+    [switch]$Cleanup,
+    # -Verify: hanya melaporkan jumlah endpoint audio DF-OpenVCable yang terdaftar
+    # di MMDevices (Render/Capture) tanpa mengubah apa pun. Harapannya 5 + 5.
+    [switch]$Verify
 )
 
 $Source = @"
@@ -152,55 +155,158 @@ public class DeviceInstaller {
 
 Add-Type -TypeDefinition $Source -ErrorAction Stop
 
-function Clean-AudioEndpointCache {
-    Write-Host "[MCVAD] Memindai dan membersihkan cache endpoint registry MMDevices..." -ForegroundColor Cyan
-    $regPaths = @(
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render",
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture"
+function Get-McvadAudioEndpoints {
+    <#
+      Enumerasi endpoint audio milik DF-OpenVCable langsung dari database MMDevices.
+      Filter memakai DEVPKEY_Device_HardwareIds = ROOT\MCVAD (presisi), dengan
+      fallback nama interface untuk build lama yang belum memakai hardware id itu.
+      Ini menggantikan filter lama yang mencocokkan string "MCVAD"/"OpenVCable" di
+      SEMUA value properti (bisa salah tangkap endpoint driver lain).
+    #>
+    $result = @()
+    $bases = @(
+        @{ Dir = 'Render';  Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render'  },
+        @{ Dir = 'Capture'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture' }
     )
 
-    $removedCount = 0
-    foreach ($basePath in $regPaths) {
-        if (-not (Test-Path $basePath)) { continue }
-        $endpoints = Get-ChildItem -Path $basePath -ErrorAction SilentlyContinue
-        foreach ($ep in $endpoints) {
-            $propPath = Join-Path $ep.PSPath "Properties"
-            if (-not (Test-Path $propPath)) { continue }
+    foreach ($base in $bases) {
+        if (-not (Test-Path -LiteralPath $base.Path)) { continue }
+        foreach ($ep in (Get-ChildItem -LiteralPath $base.Path -ErrorAction SilentlyContinue)) {
+            $propPath = Join-Path $ep.PSPath 'Properties'
+            if (-not (Test-Path -LiteralPath $propPath)) { continue }
+            $props = Get-ItemProperty -LiteralPath $propPath -ErrorAction SilentlyContinue
+            if (-not $props) { continue }
 
-            $isMcvad = $false
-            $props = Get-ItemProperty -Path $propPath -ErrorAction SilentlyContinue
-            if ($props) {
-                foreach ($prop in $props.PSObject.Properties) {
-                    $val = $prop.Value
-                    if ($val -is [string] -and ($val -match "MCVAD" -or $val -match "OpenVCable" -or $val -match "ROOT\\MCVAD")) {
-                        $isMcvad = $true
-                        break
-                    }
-                }
+            $hwIds   = $props.'{a8b865dd-2e3d-4094-ad97-e593a70c75d6},8'
+            $ifName  = $props.'{b3f8fa53-0004-438e-9003-51a46e139bfc},6'
+            $devName = $props.'{a45c254e-df1c-4efd-8020-67d146a850e0},2'
+            $instId  = $props.'{b3f8fa53-0004-438e-9003-51a46e139bfc},2'
+
+            $isOurs = $false
+            foreach ($h in @($hwIds)) {
+                if ($h -is [string] -and $h -match '(?i)ROOT\\MCVAD') { $isOurs = $true; break }
             }
+            if (-not $isOurs -and $ifName -is [string] -and $ifName -match '(?i)OpenVCable') { $isOurs = $true }
+            if (-not $isOurs) { continue }
 
-            if ($isMcvad) {
-                try {
-                    Remove-Item -Path $ep.PSPath -Recurse -Force -ErrorAction SilentlyContinue
-                    $removedCount++
-                } catch {
-                    # Key MMDevices diproteksi ACL Windows (SYSTEM/AudioEndpointBuilder)
-                }
+            $state = (Get-ItemProperty -LiteralPath $ep.PSPath -ErrorAction SilentlyContinue).DeviceState
+            $result += [pscustomobject]@{
+                Direction = $base.Dir
+                Id        = $ep.PSChildName
+                KeyPath   = $ep.PSPath
+                Name      = $devName
+                Iface     = $ifName
+                Instance  = $instId
+                State     = $state
+                Active    = ($state -eq 1)
             }
         }
     }
-    Write-Host "[MCVAD] Selesai membersihkan $removedCount cached endpoint MMDevices." -ForegroundColor Green
+    return $result
+}
+
+function Show-AudioEndpointSummary {
+    param([switch]$Quiet)
+
+    $eps = @(Get-McvadAudioEndpoints)
+    $render  = @($eps | Where-Object { $_.Direction -eq 'Render' })
+    $capture = @($eps | Where-Object { $_.Direction -eq 'Capture' })
+    $renderActive  = @($render  | Where-Object { $_.Active })
+    $captureActive = @($capture | Where-Object { $_.Active })
+
+    if (-not $Quiet) {
+        Write-Host "[MCVAD] Endpoint DF-OpenVCable terdaftar di MMDevices:" -ForegroundColor Cyan
+        foreach ($g in ($eps | Group-Object Direction)) {
+            Write-Host ("        {0,-8}: {1} entri ({2} aktif)" -f $g.Name, $g.Count, @($g.Group | Where-Object { $_.Active }).Count)
+        }
+        foreach ($e in ($eps | Sort-Object Direction, Name)) {
+            $flag = if ($e.Active) { 'ACTIVE ' } else { 'stale  ' }
+            Write-Host ("        [{0}] {1,-6} {2,-18} {3}" -f $flag, $e.Direction, $e.Name, $e.Id)
+        }
+    }
+
+    $ok = ($renderActive.Count -eq 5) -and ($captureActive.Count -eq 5)
+    if (-not $Quiet) {
+        if ($ok) {
+            Write-Host "[MCVAD] OK: 5 endpoint Render + 5 endpoint Capture aktif (10 total)." -ForegroundColor Green
+        } else {
+            Write-Host ("[MCVAD] PERINGATAN: harapannya 5 Render + 5 Capture aktif, ditemukan {0} Render + {1} Capture." -f $renderActive.Count, $captureActive.Count) -ForegroundColor Yellow
+        }
+    }
+    return [pscustomobject]@{
+        RenderTotal  = $render.Count
+        CaptureTotal = $capture.Count
+        RenderActive = $renderActive.Count
+        CaptureActive = $captureActive.Count
+        Ok           = $ok
+    }
+}
+
+function Clear-AudioEndpointCache {
+    <#
+      Hapus entri MMDevices milik DF-OpenVCable.
+
+      Catatan penting: key MMDevices di-ACL oleh Windows. BUILTIN\Administrators hanya
+      punya SetValue + ReadKey (TANPA Delete), jadi Remove-Item akan gagal walau elevated.
+      Karena itu fungsi ini bersifat best-effort: kalau gagal, entry dibiarkan.
+      Entry sisa yang sudah tidak terpakai berstatus NOTPRESENT dan TIDAK muncul di
+      Sound Settings, jadi tidak mengganggu; Windows akan membersihkannya sendiri.
+    #>
+    Write-Host "[MCVAD] Membersihkan cache endpoint MMDevices milik DF-OpenVCable..." -ForegroundColor Cyan
+
+    $eps = @(Get-McvadAudioEndpoints)
+    if ($eps.Count -eq 0) {
+        Write-Host "[MCVAD] Tidak ada endpoint DF-OpenVCable di cache. (bersih)" -ForegroundColor Green
+        return
+    }
+
+    $removed = 0
+    $blocked = 0
+    foreach ($ep in $eps) {
+        try {
+            Remove-Item -LiteralPath $ep.KeyPath -Recurse -Force -ErrorAction Stop
+            $removed++
+        } catch {
+            $blocked++
+        }
+    }
+
+    if ($removed -gt 0) {
+        Write-Host "[MCVAD] $removed endpoint berhasil dihapus dari cache." -ForegroundColor Green
+    }
+    if ($blocked -gt 0) {
+        Write-Host "[MCVAD] $blocked endpoint dilindungi ACL Windows (butuh SYSTEM) - dilewati." -ForegroundColor Gray
+        Write-Host "        Entry ini akan berstatus NOTPRESENT dan tidak tampil di Sound Settings." -ForegroundColor Gray
+    }
 }
 
 $MediaClassGuid = [Guid]::Parse("{4d36e96c-e325-11ce-bfc1-08002be10318}")
 $HardwareId = "ROOT\MCVAD"
-$DeviceDesc = "DF-OpenVCable Virtual Audio Adapter"
+$DeviceDesc = "DF-OpenVCable"
 $InfPath = Join-Path $PSScriptRoot "mcvad.inf"
+
+if ($Verify) {
+    Write-Host "[MCVAD] Verifikasi endpoint audio DF-OpenVCable (tanpa mengubah apa pun)..." -ForegroundColor Cyan
+    $null = Show-AudioEndpointSummary
+    exit 0
+}
 
 if ($Remove) {
     Write-Host "[MCVAD] Menghapus SEMUA root device node: $HardwareId..." -ForegroundColor Yellow
     $res = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
-    Clean-AudioEndpointCache
+
+    # Sisa instance yang masih tertinggal dihapus lewat pnputil (DIF_REMOVE bisa
+    # meninggalkan instance kalau devnode sedang sibuk / dalam proses restart).
+    $leftover = @(Get-PnpDevice -ErrorAction SilentlyContinue |
+                  Where-Object { $_.InstanceId -like 'ROOT\MCVAD*' -or ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*') })
+    foreach ($d in $leftover) {
+        Write-Host ("[MCVAD] pnputil /remove-device " + $d.InstanceId) -ForegroundColor Gray
+        & pnputil /remove-device $d.InstanceId 2>&1 | Out-Null
+    }
+
+    Clear-AudioEndpointCache
+    $null = Show-AudioEndpointSummary
+
     if ($res) {
         Write-Host "[MCVAD] Device node berhasil dihapus dari Device Manager." -ForegroundColor Green
     } else {
@@ -216,9 +322,22 @@ if ($Remove) {
     if ($Cleanup -and $existing -gt 0) {
         Write-Host "[MCVAD] Cleanup: menghapus $existing devnode duplikat..." -ForegroundColor Yellow
         $null = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
+
+        # Bersihkan sisa instance via pnputil sebelum devnode dibuat ulang.
+        $leftover = @(Get-PnpDevice -ErrorAction SilentlyContinue |
+                      Where-Object { $_.InstanceId -like 'ROOT\MCVAD*' -or ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*') })
+        foreach ($d in $leftover) {
+            Write-Host ("[MCVAD] pnputil /remove-device " + $d.InstanceId) -ForegroundColor Gray
+            & pnputil /remove-device $d.InstanceId 2>&1 | Out-Null
+        }
+
         Start-Sleep -Milliseconds 800
         $existing = 0
-        Clean-AudioEndpointCache
+
+        # Cache endpoint lama dibersihkan SETELAH devnode hilang. Kalau dibersihkan
+        # lebih dulu, AudioEndpointBuilder akan membuat ulang entry dari devnode
+        # yang masih hidup dan jumlahnya kembali duplikat.
+        Clear-AudioEndpointCache
     }
 
     if ($existing -eq 0) {
@@ -241,5 +360,15 @@ if ($Remove) {
         Write-Host "        Jalankan ulang dengan -Cleanup untuk merapikan menjadi 1 instance:" -ForegroundColor Yellow
         Write-Host "        powershell -ExecutionPolicy Bypass -File create_device.ps1 -Cleanup" -ForegroundColor Gray
         & pnputil /scan-devices | Out-Null
+    }
+
+    Write-Host ""
+    Write-Host "[MCVAD] Ringkasan endpoint audio setelah operasi:" -ForegroundColor Cyan
+    $summary = Show-AudioEndpointSummary
+    if (-not $summary.Ok) {
+        Write-Host ""
+        Write-Host "[MCVAD] Belum 5 Render + 5 Capture. Coba restart layanan audio, lalu cek ulang:" -ForegroundColor Yellow
+        Write-Host "        net stop audiosrv /y & net start audiosrv" -ForegroundColor Gray
+        Write-Host "        powershell -ExecutionPolicy Bypass -File create_device.ps1 -Verify" -ForegroundColor Gray
     }
 }

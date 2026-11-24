@@ -42,6 +42,7 @@ typedef struct _CABLE_CONTEXT {
     PCWSTR                  Name;
     PCWSTR                  SubdeviceName;
     PCWSTR                  TopoSubdeviceName;
+    BOOLEAN                 bEnabled;
     CCircularRingBuffer*    pSharedBuffer;
     PPORT                   pPort;
     PMINIPORT               pMiniport;

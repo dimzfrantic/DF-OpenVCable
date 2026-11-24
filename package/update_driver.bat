@@ -69,6 +69,10 @@ powershell -NoProfile -Command ^
   "if ($svc) { Write-Host ('      Service : ' + $svc.Status) }"
 
 echo.
+echo       Verifikasi endpoint audio (target: 5 Render + 5 Capture)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0create_device.ps1" -Verify
+
+echo.
 echo [5/5] Restart
 echo       Binary driver hanya dimuat ulang setelah Windows restart.
 echo.
