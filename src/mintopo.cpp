@@ -19,48 +19,15 @@ static const PKSDATARANGE g_TopoBridgeRangePtrs[] = {
     (PKSDATARANGE)&g_TopoBridgeRanges[0]
 };
 
-// 4 Pin Descriptor untuk Topology Filter
-static const PCPIN_DESCRIPTOR g_TopoPins[] = {
-    // Pin 0: PIN_TOPO_WAVEOUT_SINK (Physical connection from WaveRT Render)
-    {
-        0, 0, 0, NULL,
-        {
-            0, NULL, 0, NULL,
-            SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs,
-            KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE,
-            &KSCATEGORY_AUDIO, NULL, 0
-        }
-    },
-    // Pin 1: PIN_TOPO_SPEAKER_BRIDGE (Bridge Pin to Speakers / Line Out)
-    {
-        0, 0, 0, NULL,
-        {
-            0, NULL, 0, NULL,
-            SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs,
-            KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE,
-            &g_KsNodeTypeSpeaker, NULL, 0
-        }
-    },
-    // Pin 2: PIN_TOPO_MIC_BRIDGE (Bridge Pin from Microphone / Line In)
-    {
-        0, 0, 0, NULL,
-        {
-            0, NULL, 0, NULL,
-            SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs,
-            KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE,
-            &g_KsNodeTypeMicrophone, NULL, 0
-        }
-    },
-    // Pin 3: PIN_TOPO_WAVEIN_SOURCE (Physical connection to WaveRT Capture)
-    {
-        0, 0, 0, NULL,
-        {
-            0, NULL, 0, NULL,
-            SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs,
-            KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE,
-            &KSCATEGORY_AUDIO, NULL, 0
-        }
-    }
+// 4 Pin Descriptor untuk Topology Filter per Virtual Cable
+#define DEFINE_TOPO_PINS_FOR_CABLE(renderNameGuid, captureNameGuid) { \n    { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } }, \n    { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeSpeaker, &(renderNameGuid), 0 } }, \n    { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_IN, KSPIN_COMMUNICATION_NONE, &g_KsNodeTypeMicrophone, &(captureNameGuid), 0 } }, \n    { 0, 0, 0, NULL, { 0, NULL, 0, NULL, SIZEOF_ARRAY(g_TopoBridgeRangePtrs), g_TopoBridgeRangePtrs, KSPIN_DATAFLOW_OUT, KSPIN_COMMUNICATION_NONE, &KSCATEGORY_AUDIO, NULL, 0 } } \n}
+
+static const PCPIN_DESCRIPTOR g_TopoPins_Cable[MAX_CABLES][4] = {
+    DEFINE_TOPO_PINS_FOR_CABLE(PINNAME_MCVAD_CABLE_A_RENDER, PINNAME_MCVAD_CABLE_A_CAPTURE),
+    DEFINE_TOPO_PINS_FOR_CABLE(PINNAME_MCVAD_CABLE_B_RENDER, PINNAME_MCVAD_CABLE_B_CAPTURE),
+    DEFINE_TOPO_PINS_FOR_CABLE(PINNAME_MCVAD_CABLE_C_RENDER, PINNAME_MCVAD_CABLE_C_CAPTURE),
+    DEFINE_TOPO_PINS_FOR_CABLE(PINNAME_MCVAD_CABLE_D_RENDER, PINNAME_MCVAD_CABLE_D_CAPTURE),
+    DEFINE_TOPO_PINS_FOR_CABLE(PINNAME_MCVAD_CABLE_E_RENDER, PINNAME_MCVAD_CABLE_E_CAPTURE)
 };
 
 // Koneksi internal filter Topology:
@@ -76,19 +43,14 @@ static const GUID g_TopoCategories[] = {
     { STATICGUIDOF(KSCATEGORY_AUDIO) }
 };
 
-static const PCFILTER_DESCRIPTOR g_TopoFilterDescriptor = {
-    0,
-    NULL,
-    sizeof(PCPIN_DESCRIPTOR),
-    SIZEOF_ARRAY(g_TopoPins),
-    g_TopoPins,
-    sizeof(PCNODE_DESCRIPTOR),
-    0,
-    NULL,
-    SIZEOF_ARRAY(g_TopoConnections),
-    g_TopoConnections,
-    SIZEOF_ARRAY(g_TopoCategories),
-    g_TopoCategories
+#define DEFINE_TOPO_FILTER_FOR_CABLE(idx) { \n    0, NULL, sizeof(PCPIN_DESCRIPTOR), 4, g_TopoPins_Cable[idx], \n    sizeof(PCNODE_DESCRIPTOR), 0, NULL, \n    SIZEOF_ARRAY(g_TopoConnections), g_TopoConnections, \n    SIZEOF_ARRAY(g_TopoCategories), g_TopoCategories \n}
+
+static const PCFILTER_DESCRIPTOR g_TopoFilterDescriptors[MAX_CABLES] = {
+    DEFINE_TOPO_FILTER_FOR_CABLE(0),
+    DEFINE_TOPO_FILTER_FOR_CABLE(1),
+    DEFINE_TOPO_FILTER_FOR_CABLE(2),
+    DEFINE_TOPO_FILTER_FOR_CABLE(3),
+    DEFINE_TOPO_FILTER_FOR_CABLE(4)
 };
 
 #pragma code_seg("PAGE")
@@ -147,7 +109,8 @@ STDMETHODIMP CMiniportTopology::NonDelegatingQueryInterface(REFIID Interface, PV
 STDMETHODIMP_(NTSTATUS) CMiniportTopology::GetDescription(PPCFILTER_DESCRIPTOR* ppFilterDescriptor) {
     PAGED_CODE();
     if (!ppFilterDescriptor) return STATUS_INVALID_PARAMETER;
-    *ppFilterDescriptor = (PPCFILTER_DESCRIPTOR)&g_TopoFilterDescriptor;
+    ULONG idx = (m_CableIndex < MAX_CABLES) ? m_CableIndex : 0;
+    *ppFilterDescriptor = (PPCFILTER_DESCRIPTOR)&g_TopoFilterDescriptors[idx];
     return STATUS_SUCCESS;
 }
 

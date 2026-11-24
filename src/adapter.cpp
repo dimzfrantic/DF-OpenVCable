@@ -8,27 +8,27 @@
 
 // Nama Subdevice yang diekspos ke Windows
 const PCWSTR g_CableNames[MAX_CABLES] = {
-    L"Virtual Audio Cable 1",
-    L"Virtual Audio Cable A",
-    L"Virtual Audio Cable B",
-    L"Virtual Audio Cable C",
-    L"Virtual Audio Cable D"
+    L"DF-OpenVCable A",
+    L"DF-OpenVCable B",
+    L"DF-OpenVCable C",
+    L"DF-OpenVCable D",
+    L"DF-OpenVCable E"
 };
 
 const PCWSTR g_CableSubdeviceNames[MAX_CABLES] = {
-    L"Cable1",
     L"CableA",
     L"CableB",
     L"CableC",
-    L"CableD"
+    L"CableD",
+    L"CableE"
 };
 
 const PCWSTR g_CableTopoSubdeviceNames[MAX_CABLES] = {
-    L"Cable1_Topo",
     L"CableA_Topo",
     L"CableB_Topo",
     L"CableC_Topo",
-    L"CableD_Topo"
+    L"CableD_Topo",
+    L"CableE_Topo"
 };
 
 // Global array konteks virtual cable
@@ -361,6 +361,7 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
         CMiniportTopology* pMiniportTopo = new (NonPagedPoolNx, MCVAD_POOL_TAG) CMiniportTopology(NULL);
         if (!pMiniportTopo) continue;
         pMiniportTopo->AddRef();
+        pMiniportTopo->SetCableIndex(i);
 
         // 5. Buat Port Topology
         PPORTTOPOLOGY pPortTopo = NULL;

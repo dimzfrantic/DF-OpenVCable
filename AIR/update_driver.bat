@@ -48,11 +48,17 @@ pnputil /add-driver "%~dp0mcvad.inf" /install
 echo       pnputil exit code: %ERRORLEVEL%
 
 echo.
-echo [3/5] Merapikan devnode ROOT\MCVAD...
+echo [3/5] Merapikan devnode ROOT\MCVAD & cache registri MMDevices...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0create_device.ps1" -Cleanup
 
 echo.
-echo [4/5] Verifikasi status...
+echo [4/5] Me-refresh Windows Audio Service...
+net stop audiosrv /y >nul 2>&1
+net start audiosrv >nul 2>&1
+net start AudioEndpointBuilder >nul 2>&1
+
+echo.
+echo [5/5] Verifikasi status...
 powershell -NoProfile -Command ^
   "$d=@(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*' });" ^
   "Write-Host ('      Devnode : ' + $d.Count);" ^

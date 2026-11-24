@@ -3,7 +3,7 @@ Signature="$WINDOWS NT$"
 Class=MEDIA
 ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
 Provider=%ProviderName%
-DriverVer=11/23/2026,1.0.0.4
+DriverVer=11/23/2026,1.0.0.5
 CatalogFile=mcvad.cat
 PnpLockdown=1
 
@@ -42,46 +42,84 @@ HKR,Drivers\wave\wdmaud.drv,Driver,,wdmaud.drv
 HKR,Drivers\midi\wdmaud.drv,Driver,,wdmaud.drv
 HKR,Drivers\mixer\wdmaud.drv,Driver,,wdmaud.drv
 
+; Registrasi MediaCategories untuk penamaan pin bridge di Sound Control Panel
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_A_RENDER%,Name,,%CableA.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_A_RENDER%,Display,1,00,00,00,00
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_A_CAPTURE%,Name,,%CableA.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_A_CAPTURE%,Display,1,00,00,00,00
+
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_B_RENDER%,Name,,%CableB.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_B_RENDER%,Display,1,00,00,00,00
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_B_CAPTURE%,Name,,%CableB.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_B_CAPTURE%,Display,1,00,00,00,00
+
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_C_RENDER%,Name,,%CableC.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_C_RENDER%,Display,1,00,00,00,00
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_C_CAPTURE%,Name,,%CableC.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_C_CAPTURE%,Display,1,00,00,00,00
+
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_D_RENDER%,Name,,%CableD.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_D_RENDER%,Display,1,00,00,00,00
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_D_CAPTURE%,Name,,%CableD.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_D_CAPTURE%,Display,1,00,00,00,00
+
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_RENDER%,Name,,%CableE.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_RENDER%,Display,1,00,00,00,00
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_CAPTURE%,Name,,%CableE.Desc%
+HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_CAPTURE%,Display,1,00,00,00,00
+
 [MCVAD_Device.NT.Interfaces]
-; Daftarkan 5 pasang Virtual Audio Interface (Render & Capture)
-; Cable 1 (Main)
-AddInterface=%KSCATEGORY_AUDIO%,"Cable1",MCVAD.Interface.Cable1
-AddInterface=%KSCATEGORY_RENDER%,"Cable1",MCVAD.Interface.Cable1
-AddInterface=%KSCATEGORY_CAPTURE%,"Cable1",MCVAD.Interface.Cable1
-AddInterface=%KSCATEGORY_REALTIME%,"Cable1",MCVAD.Interface.Cable1
+; Daftarkan 5 pasang Virtual Audio Interface (Render & Capture) + Topology
 
 ; Cable A
 AddInterface=%KSCATEGORY_AUDIO%,"CableA",MCVAD.Interface.CableA
 AddInterface=%KSCATEGORY_RENDER%,"CableA",MCVAD.Interface.CableA
 AddInterface=%KSCATEGORY_CAPTURE%,"CableA",MCVAD.Interface.CableA
 AddInterface=%KSCATEGORY_REALTIME%,"CableA",MCVAD.Interface.CableA
+AddInterface=%KSCATEGORY_AUDIO%,"CableA_Topo",MCVAD.Interface.CableA_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableA_Topo",MCVAD.Interface.CableA_Topo
 
 ; Cable B
 AddInterface=%KSCATEGORY_AUDIO%,"CableB",MCVAD.Interface.CableB
 AddInterface=%KSCATEGORY_RENDER%,"CableB",MCVAD.Interface.CableB
 AddInterface=%KSCATEGORY_CAPTURE%,"CableB",MCVAD.Interface.CableB
 AddInterface=%KSCATEGORY_REALTIME%,"CableB",MCVAD.Interface.CableB
+AddInterface=%KSCATEGORY_AUDIO%,"CableB_Topo",MCVAD.Interface.CableB_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableB_Topo",MCVAD.Interface.CableB_Topo
 
 ; Cable C
 AddInterface=%KSCATEGORY_AUDIO%,"CableC",MCVAD.Interface.CableC
 AddInterface=%KSCATEGORY_RENDER%,"CableC",MCVAD.Interface.CableC
 AddInterface=%KSCATEGORY_CAPTURE%,"CableC",MCVAD.Interface.CableC
 AddInterface=%KSCATEGORY_REALTIME%,"CableC",MCVAD.Interface.CableC
+AddInterface=%KSCATEGORY_AUDIO%,"CableC_Topo",MCVAD.Interface.CableC_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableC_Topo",MCVAD.Interface.CableC_Topo
 
 ; Cable D
 AddInterface=%KSCATEGORY_AUDIO%,"CableD",MCVAD.Interface.CableD
 AddInterface=%KSCATEGORY_RENDER%,"CableD",MCVAD.Interface.CableD
 AddInterface=%KSCATEGORY_CAPTURE%,"CableD",MCVAD.Interface.CableD
 AddInterface=%KSCATEGORY_REALTIME%,"CableD",MCVAD.Interface.CableD
+AddInterface=%KSCATEGORY_AUDIO%,"CableD_Topo",MCVAD.Interface.CableD_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableD_Topo",MCVAD.Interface.CableD_Topo
 
-[MCVAD.Interface.Cable1]
-AddReg=MCVAD.Interface.Cable1.AddReg
-[MCVAD.Interface.Cable1.AddReg]
-HKR,,FriendlyName,,%Cable1.Desc%
+; Cable E
+AddInterface=%KSCATEGORY_AUDIO%,"CableE",MCVAD.Interface.CableE
+AddInterface=%KSCATEGORY_RENDER%,"CableE",MCVAD.Interface.CableE
+AddInterface=%KSCATEGORY_CAPTURE%,"CableE",MCVAD.Interface.CableE
+AddInterface=%KSCATEGORY_REALTIME%,"CableE",MCVAD.Interface.CableE
+AddInterface=%KSCATEGORY_AUDIO%,"CableE_Topo",MCVAD.Interface.CableE_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableE_Topo",MCVAD.Interface.CableE_Topo
 
+; --- Interface AddReg Sections ---
 [MCVAD.Interface.CableA]
 AddReg=MCVAD.Interface.CableA.AddReg
 [MCVAD.Interface.CableA.AddReg]
+HKR,,FriendlyName,,%CableA.Desc%
+
+[MCVAD.Interface.CableA_Topo]
+AddReg=MCVAD.Interface.CableA_Topo.AddReg
+[MCVAD.Interface.CableA_Topo.AddReg]
 HKR,,FriendlyName,,%CableA.Desc%
 
 [MCVAD.Interface.CableB]
@@ -89,15 +127,40 @@ AddReg=MCVAD.Interface.CableB.AddReg
 [MCVAD.Interface.CableB.AddReg]
 HKR,,FriendlyName,,%CableB.Desc%
 
+[MCVAD.Interface.CableB_Topo]
+AddReg=MCVAD.Interface.CableB_Topo.AddReg
+[MCVAD.Interface.CableB_Topo.AddReg]
+HKR,,FriendlyName,,%CableB.Desc%
+
 [MCVAD.Interface.CableC]
 AddReg=MCVAD.Interface.CableC.AddReg
 [MCVAD.Interface.CableC.AddReg]
+HKR,,FriendlyName,,%CableC.Desc%
+
+[MCVAD.Interface.CableC_Topo]
+AddReg=MCVAD.Interface.CableC_Topo.AddReg
+[MCVAD.Interface.CableC_Topo.AddReg]
 HKR,,FriendlyName,,%CableC.Desc%
 
 [MCVAD.Interface.CableD]
 AddReg=MCVAD.Interface.CableD.AddReg
 [MCVAD.Interface.CableD.AddReg]
 HKR,,FriendlyName,,%CableD.Desc%
+
+[MCVAD.Interface.CableD_Topo]
+AddReg=MCVAD.Interface.CableD_Topo.AddReg
+[MCVAD.Interface.CableD_Topo.AddReg]
+HKR,,FriendlyName,,%CableD.Desc%
+
+[MCVAD.Interface.CableE]
+AddReg=MCVAD.Interface.CableE.AddReg
+[MCVAD.Interface.CableE.AddReg]
+HKR,,FriendlyName,,%CableE.Desc%
+
+[MCVAD.Interface.CableE_Topo]
+AddReg=MCVAD.Interface.CableE_Topo.AddReg
+[MCVAD.Interface.CableE_Topo.AddReg]
+HKR,,FriendlyName,,%CableE.Desc%
 
 [MCVAD_Device.NT.Services]
 AddService = mcvad, 0x00000002, MCVAD_Service_Inst
@@ -116,13 +179,27 @@ DiskDescription     = "DF-OpenVCable Driver Disk"
 DeviceDesc          = "DF-OpenVCable Virtual Audio Adapter"
 MCVAD.SvcDesc       = "DF-OpenVCable Virtual Audio Service"
 
-Cable1.Desc         = "DF-OpenVCable 1 (Main)"
 CableA.Desc         = "DF-OpenVCable A"
 CableB.Desc         = "DF-OpenVCable B"
 CableC.Desc         = "DF-OpenVCable C"
 CableD.Desc         = "DF-OpenVCable D"
+CableE.Desc         = "DF-OpenVCable E"
+
+MediaCategories     = "SYSTEM\CurrentControlSet\Control\MediaCategories"
+
+PINNAME_MCVAD_CABLE_A_RENDER  = "{D48C1101-7F6A-4A8E-9541-67890ABC0001}"
+PINNAME_MCVAD_CABLE_A_CAPTURE = "{D48C1101-7F6A-4A8E-9541-67890ABC0002}"
+PINNAME_MCVAD_CABLE_B_RENDER  = "{D48C1102-7F6A-4A8E-9541-67890ABC0001}"
+PINNAME_MCVAD_CABLE_B_CAPTURE = "{D48C1102-7F6A-4A8E-9541-67890ABC0002}"
+PINNAME_MCVAD_CABLE_C_RENDER  = "{D48C1103-7F6A-4A8E-9541-67890ABC0001}"
+PINNAME_MCVAD_CABLE_C_CAPTURE = "{D48C1103-7F6A-4A8E-9541-67890ABC0002}"
+PINNAME_MCVAD_CABLE_D_RENDER  = "{D48C1104-7F6A-4A8E-9541-67890ABC0001}"
+PINNAME_MCVAD_CABLE_D_CAPTURE = "{D48C1104-7F6A-4A8E-9541-67890ABC0002}"
+PINNAME_MCVAD_CABLE_E_RENDER  = "{D48C1105-7F6A-4A8E-9541-67890ABC0001}"
+PINNAME_MCVAD_CABLE_E_CAPTURE = "{D48C1105-7F6A-4A8E-9541-67890ABC0002}"
 
 KSCATEGORY_AUDIO    = "{6994AD04-93EF-11D0-A3CC-00A0C9223196}"
 KSCATEGORY_RENDER   = "{65E8773E-8F56-11D0-A3B9-00A0C9223196}"
 KSCATEGORY_CAPTURE  = "{65E8773D-8F56-11D0-A3B9-00A0C9223196}"
+KSCATEGORY_TOPOLOGY = "{DDA54A40-1E4C-11D1-A050-405705C10000}"
 KSCATEGORY_REALTIME = "{EB115FFC-10C8-4964-831D-6DCB02E6F23F}"

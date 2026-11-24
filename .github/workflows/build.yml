@@ -193,7 +193,7 @@ jobs:
         shell: pwsh
         run: |
           Set-Location control_panel
-          & cl.exe /nologo /O2 /EHsc /W3 /D_UNICODE /DUNICODE control_panel.cpp /Fe:control_panel.exe /link user32.lib gdi32.lib comctl32.lib /SUBSYSTEM:WINDOWS
+          & cl.exe /nologo /O2 /EHsc /W3 /D_UNICODE /DUNICODE control_panel.cpp /Fe:control_panel.exe /link user32.lib gdi32.lib comctl32.lib dwmapi.lib uxtheme.lib /SUBSYSTEM:WINDOWS
           if ($LASTEXITCODE -ne 0) {
               throw "Control Panel compilation failed with exit code $LASTEXITCODE"
           }

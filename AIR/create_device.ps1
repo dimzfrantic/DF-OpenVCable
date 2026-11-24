@@ -152,6 +152,46 @@ public class DeviceInstaller {
 
 Add-Type -TypeDefinition $Source -ErrorAction Stop
 
+function Clean-AudioEndpointCache {
+    Write-Host "[MCVAD] Memindai dan membersihkan cache endpoint registry MMDevices..." -ForegroundColor Cyan
+    $regPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render",
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture"
+    )
+
+    $removedCount = 0
+    foreach ($basePath in $regPaths) {
+        if (-not (Test-Path $basePath)) { continue }
+        $endpoints = Get-ChildItem -Path $basePath -ErrorAction SilentlyContinue
+        foreach ($ep in $endpoints) {
+            $propPath = Join-Path $ep.PSPath "Properties"
+            if (-not (Test-Path $propPath)) { continue }
+
+            $isMcvad = $false
+            $props = Get-ItemProperty -Path $propPath -ErrorAction SilentlyContinue
+            if ($props) {
+                foreach ($prop in $props.PSObject.Properties) {
+                    $val = $prop.Value
+                    if ($val -is [string] -and ($val -match "MCVAD" -or $val -match "OpenVCable" -or $val -match "ROOT\\MEDIA")) {
+                        $isMcvad = $true
+                        break
+                    }
+                }
+            }
+
+            if ($isMcvad) {
+                try {
+                    Remove-Item -Path $ep.PSPath -Recurse -Force -ErrorAction Stop
+                    $removedCount++
+                } catch {
+                    Write-Host "      [WARN] Gagal menghapus $($ep.PSChildName): $_" -ForegroundColor Yellow
+                }
+            }
+        }
+    }
+    Write-Host "[MCVAD] Selesai membersihkan $removedCount cached endpoint MMDevices." -ForegroundColor Green
+}
+
 $MediaClassGuid = [Guid]::Parse("{4d36e96c-e325-11ce-bfc1-08002be10318}")
 $HardwareId = "ROOT\MCVAD"
 $DeviceDesc = "DF-OpenVCable Virtual Audio Adapter"
@@ -160,6 +200,7 @@ $InfPath = Join-Path $PSScriptRoot "mcvad.inf"
 if ($Remove) {
     Write-Host "[MCVAD] Menghapus SEMUA root device node: $HardwareId..." -ForegroundColor Yellow
     $res = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
+    Clean-AudioEndpointCache
     if ($res) {
         Write-Host "[MCVAD] Device node berhasil dihapus dari Device Manager." -ForegroundColor Green
     } else {
@@ -177,6 +218,7 @@ if ($Remove) {
         $null = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
         Start-Sleep -Milliseconds 800
         $existing = 0
+        Clean-AudioEndpointCache
     }
 
     if ($existing -eq 0) {

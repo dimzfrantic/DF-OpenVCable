@@ -16,11 +16,11 @@
 #define MAX_CABLES 5
 
 enum CABLE_INDEX {
-    CABLE_1 = 0, // Virtual Cable 1 (Main)
-    CABLE_A = 1, // Virtual Cable A
-    CABLE_B = 2, // Virtual Cable B
-    CABLE_C = 3, // Virtual Cable C
-    CABLE_D = 4  // Virtual Cable D
+    CABLE_A = 0, // Virtual Cable A
+    CABLE_B = 1, // Virtual Cable B
+    CABLE_C = 2, // Virtual Cable C
+    CABLE_D = 3, // Virtual Cable D
+    CABLE_E = 4  // Virtual Cable E
 };
 
 // Default format audio virtual
