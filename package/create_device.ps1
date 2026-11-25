@@ -9,7 +9,10 @@ param (
     [switch]$Cleanup,
     # -Verify: hanya melaporkan jumlah endpoint audio DF-OpenVCable yang terdaftar
     # di MMDevices (Render/Capture) tanpa mengubah apa pun. Harapannya 5 + 5.
-    [switch]$Verify
+    [switch]$Verify,
+    # -Repair: nyalakan kembali devnode DF-OpenVCable yang tertinggal dalam status
+    # disabled, lalu restart audio service. Tidak menghapus / membuat devnode.
+    [switch]$Repair
 )
 
 $Source = @"
@@ -366,6 +369,40 @@ function Remove-RegistryKeyForce {
     }
 }
 
+function Enable-McvadDevices([string[]]$InstanceIds) {
+    # Menyalakan kembali devnode yang terlanjur di-disable. Dipakai saat cleanup
+    # dibatalkan dan sebagai self-heal di awal skrip.
+    if (-not $InstanceIds -or $InstanceIds.Count -eq 0) { return 0 }
+
+    Write-Host "[MCVAD] Mengaktifkan kembali devnode yang dalam status disabled..." -ForegroundColor Yellow
+    $ok = 0
+    foreach ($id in $InstanceIds) {
+        for ($k = 0; $k -lt 4; $k++) {
+            try {
+                Enable-PnpDevice -InstanceId $id -Confirm:$false -ErrorAction Stop
+                Write-Host ("[MCVAD]   enabled: " + $id) -ForegroundColor Gray
+                $ok++
+                break
+            } catch {
+                if ($k -eq 3) {
+                    Write-Host ("[MCVAD]   GAGAL enable " + $id + ": " + $_.Exception.Message) -ForegroundColor Red
+                } else {
+                    Start-Sleep -Milliseconds 500
+                }
+            }
+        }
+    }
+    return $ok
+}
+
+function Get-DisabledMcvadDevices {
+    @(Get-PnpDevice -ErrorAction SilentlyContinue |
+      Where-Object { ($_.InstanceId -like 'ROOT\MCVAD*' -or
+                      ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*')) -and
+                     $_.Status -eq 'Error' -and $_.Problem -eq 'CM_PROB_DISABLED' } |
+      Select-Object -ExpandProperty InstanceId)
+}
+
 function Stop-McvadDriver {
     # PENTING: PnP akan MEMAKAI ULANG image driver yang sudah termuat kalau service
     # kernel `mcvad` masih Running ketika devnode baru dibuat. Akibatnya devnode baru
@@ -404,6 +441,13 @@ function Stop-McvadDriver {
     Write-Host "[MCVAD] Status service mcvad setelah unload: $state" -ForegroundColor Gray
     if ($state -eq 'Running') {
         Write-Host "[MCVAD] PERINGATAN: driver masih termuat (image belum dilepas)." -ForegroundColor Yellow
+        # PENTING: jangan tinggalkan perangkat dalam status disabled. Devnode yang
+        # disabled (CM_PROB_DISABLED) membuat perangkat audio HILANG dari Sound
+        # Settings. Karena cleanup akan dibatalkan, nyalakan kembali semuanya.
+        $stillDisabled = Get-DisabledMcvadDevices
+        if ($stillDisabled.Count -gt 0) {
+            $null = Enable-McvadDevices $stillDisabled
+        }
         return $false
     }
     return $true
@@ -425,6 +469,37 @@ $InfPath = Join-Path $PSScriptRoot "mcvad.inf"
 
 if ($Verify) {
     Write-Host "[MCVAD] Verifikasi endpoint audio DF-OpenVCable (tanpa mengubah apa pun)..." -ForegroundColor Cyan
+    $null = Show-AudioEndpointSummary
+    exit 0
+}
+
+if ($Repair) {
+    Write-Host "[MCVAD] Repair: memeriksa devnode DF-OpenVCable..." -ForegroundColor Cyan
+    $devs = @(Get-PnpDevice -ErrorAction SilentlyContinue |
+              Where-Object { $_.InstanceId -like 'ROOT\MCVAD*' -or
+                             ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*') })
+
+    if ($devs.Count -eq 0) {
+        Write-Host "[MCVAD] Tidak ada devnode DF-OpenVCable sama sekali." -ForegroundColor Yellow
+        Write-Host "        Jalankan create_device.ps1 tanpa -Repair untuk membuatnya." -ForegroundColor Yellow
+    } else {
+        $disabled = Get-DisabledMcvadDevices
+        if ($disabled.Count -gt 0) {
+            $null = Enable-McvadDevices $disabled
+        } else {
+            Write-Host "[MCVAD] Semua devnode DF-OpenVCable sudah enabled." -ForegroundColor Gray
+        }
+
+        $svc = Get-Service mcvad -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -ne 'Running') {
+            try { Start-Service mcvad -ErrorAction Stop } catch {
+                Write-Host ("[MCVAD] Start-Service mcvad gagal: " + $_.Exception.Message) -ForegroundColor Yellow
+            }
+        }
+
+        Restart-AudioServices
+    }
+
     $null = Show-AudioEndpointSummary
     exit 0
 }
@@ -457,6 +532,14 @@ if ($Remove) {
     # (ROOT\MEDIA\0004, 0005, 0006, ...) yang membuat AudioEndpointBuilder bingung.
     $existing = [DeviceInstaller]::CountRootDevices($MediaClassGuid, $HardwareId)
     if ($existing -lt 0) { $existing = 0 }
+
+    # Self-heal: percobaan update sebelumnya bisa meninggalkan devnode dalam status
+    # disabled (CM_PROB_DISABLED). Devnode seperti itu TIDAK muncul di Sound
+    # Settings, jadi perangkat tampak "hilang". Nyalakan dulu sebelum lanjut.
+    $disabled = Get-DisabledMcvadDevices
+    if ($disabled.Count -gt 0) {
+        $null = Enable-McvadDevices $disabled
+    }
 
     $bUnloaded = $true
     if ($Cleanup -and $existing -gt 0) {
