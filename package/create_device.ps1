@@ -380,7 +380,7 @@ function Stop-McvadDriver {
                              ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*') })
     if ($devs.Count -eq 0) {
         Write-Host "[MCVAD] Tidak ada devnode DF-OpenVCable untuk di-unload." -ForegroundColor Gray
-        return
+        return $true
     }
 
     Write-Host ("[MCVAD] Memaksa unload driver mcvad ({0} devnode)..." -f $devs.Count) -ForegroundColor Cyan
@@ -403,9 +403,10 @@ function Stop-McvadDriver {
     $state = if ($svc) { $svc.Status } else { 'tidak ada' }
     Write-Host "[MCVAD] Status service mcvad setelah unload: $state" -ForegroundColor Gray
     if ($state -eq 'Running') {
-        Write-Host "[MCVAD] PERINGATAN: driver masih termuat. Devnode baru akan memakai binary lama." -ForegroundColor Yellow
-        Write-Host "        Restart Windows lalu jalankan ulang skrip ini." -ForegroundColor Yellow
+        Write-Host "[MCVAD] PERINGATAN: driver masih termuat (image belum dilepas)." -ForegroundColor Yellow
+        return $false
     }
+    return $true
 }
 
 function Restart-AudioServices {
@@ -457,9 +458,10 @@ if ($Remove) {
     $existing = [DeviceInstaller]::CountRootDevices($MediaClassGuid, $HardwareId)
     if ($existing -lt 0) { $existing = 0 }
 
+    $bUnloaded = $true
     if ($Cleanup -and $existing -gt 0) {
         Write-Host "[MCVAD] Cleanup: menghapus $existing devnode duplikat..." -ForegroundColor Yellow
-        Stop-McvadDriver
+        $bUnloaded = Stop-McvadDriver
         $null = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
 
         # Bersihkan sisa instance via pnputil sebelum devnode dibuat ulang.
@@ -479,7 +481,12 @@ if ($Remove) {
         Clear-AudioEndpointCache
     }
 
-    if ($existing -eq 0) {
+    if (-not $bUnloaded) {
+        Write-Host "[MCVAD] Devnode TIDAK dibuat ulang: image driver lama masih termuat." -ForegroundColor Yellow
+        Write-Host "        Kalau dipaksa, devnode baru akan memakai binary lama dan hasilnya" -ForegroundColor Yellow
+        Write-Host "        menyesatkan (versi terlihat baru, perilaku masih lama)." -ForegroundColor Yellow
+        Write-Host "        Restart Windows, lalu jalankan skrip ini sekali lagi." -ForegroundColor Yellow
+    } elseif ($existing -eq 0) {
         Write-Host "[MCVAD] Mendaftarkan root device node: $HardwareId..." -ForegroundColor Cyan
         $errDetail = [string]::Empty
         $res = [DeviceInstaller]::CreateRootDevice($MediaClassGuid, $HardwareId, $DeviceDesc, $InfPath, [ref]$errDetail)
