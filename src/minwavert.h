@@ -40,7 +40,12 @@ private:
 
     // Parameter format aktual (dipakai untuk preroll & deteksi backlog basi)
     ULONG                   m_BytesPerSec;
-    ULONG                   m_BlockAlign;
+    ULONG                   m_BlockAlign;      // nBlockAlign stream (bisa 6 atau 8)
+    ULONG                   m_RingBlockAlign;  // lebar frame kanonik ring (channels * 3)
+
+    // Buffer kerja untuk normalisasi container (mis. 24-in-32 <-> 24 packed).
+    PVOID                   m_pConvertA;
+    PVOID                   m_pConvertB;
 
 public:
     DECLARE_STD_UNKNOWN();
@@ -64,6 +69,17 @@ public:
     STDMETHODIMP_(NTSTATUS) GetClockRegister(KSRTAUDIO_HWREGISTER* pRegister);
     STDMETHODIMP_(NTSTATUS) GetPositionRegister(KSRTAUDIO_HWREGISTER* pRegister);
     STDMETHODIMP_(VOID)     GetHWLatency(KSRTAUDIO_HWLATENCY* pLatency);
+
+private:
+    // Transfer antara DMA buffer dan ring, dengan normalisasi container.
+    // Ring selalu menyimpan PCM 24-bit packed (3 byte/sample), sementara stream
+    // bisa dinegosiasikan sebagai 24-in-32 (4 byte/sample). Tanpa normalisasi,
+    // laju byte kedua sisi berbeda dan loopback byte-based rusak.
+    VOID CopyDmaOut(ULONG offset, ULONG bytes, PVOID pDst);
+    VOID CopyDmaIn(ULONG offset, ULONG bytes, PVOID pSrc);
+    VOID ZeroDmaChunk(ULONG offset, ULONG bytes);
+    VOID TransferRenderChunk(ULONG prevPos, ULONG bytes, ULONG blockAlign, CCircularRingBuffer* pRing);
+    VOID TransferCaptureChunk(ULONG prevPos, ULONG bytes, ULONG blockAlign, CCircularRingBuffer* pRing);
 };
 
 //=====================================================================

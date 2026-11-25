@@ -340,7 +340,10 @@ CMiniportWaveRTStream::CMiniportWaveRTStream(PUNKNOWN pUnknownOuter) :
     m_DmaBufferSize(0),
     m_LinearPosition(0),
     m_BytesPerSec(0),
-    m_BlockAlign(6)
+    m_BlockAlign(6),
+    m_RingBlockAlign(6),
+    m_pConvertA(NULL),
+    m_pConvertB(NULL)
 {
     m_StartTime.QuadPart = 0;
     KeQueryPerformanceCounter(&m_Frequency);
@@ -353,6 +356,8 @@ CMiniportWaveRTStream::~CMiniportWaveRTStream() {
         else            m_pMiniport->RenderStreamStopped();
         m_State = KSSTATE_STOP;
     }
+    if (m_pConvertA) { ExFreePoolWithTag(m_pConvertA, MCVAD_POOL_TAG); m_pConvertA = NULL; }
+    if (m_pConvertB) { ExFreePoolWithTag(m_pConvertB, MCVAD_POOL_TAG); m_pConvertB = NULL; }
     if (m_pDmaBuffer && m_pDmaMdl) {
         MmUnlockPages(m_pDmaMdl);
         IoFreeMdl(m_pDmaMdl);
@@ -387,21 +392,33 @@ NTSTATUS CMiniportWaveRTStream::Init(
     // dipasang oleh sisi capture karena hanya capture yang mengonsumsi ring.
     ULONG blockAlign = m_pFormat->WaveFormatExt.Format.nBlockAlign;
     ULONG bytesPerSec = m_pFormat->WaveFormatExt.Format.nAvgBytesPerSec;
-    if (blockAlign == 0) blockAlign = DEFAULT_CHANNELS * (DEFAULT_CONTAINER_SIZE / 8);
-    if (bytesPerSec == 0) bytesPerSec = DEFAULT_SAMPLE_RATE * blockAlign;
+    ULONG channels = m_pFormat->WaveFormatExt.Format.nChannels;
+    ULONG sampleRate = m_pFormat->WaveFormatExt.Format.nSamplesPerSec;
+
+    if (channels == 0) channels = DEFAULT_CHANNELS;
+    if (sampleRate == 0) sampleRate = DEFAULT_SAMPLE_RATE;
+    if (blockAlign == 0) blockAlign = channels * (DEFAULT_CONTAINER_SIZE / 8);
+    if (bytesPerSec == 0) bytesPerSec = sampleRate * blockAlign;
+
+    // Ring SELALU menyimpan PCM 24-bit packed (3 byte per sample). Stream bisa
+    // dinegosiasikan sebagai 24-in-32 (4 byte per sample) - dan Windows memang
+    // memilih container berbeda untuk endpoint Render dan Capture. Karena itu
+    // laju acuan ring dihitung dari format kanonik, bukan nAvgBytesPerSec stream.
+    m_RingBlockAlign = channels * 3;
+    ULONG ringBytesPerSec = sampleRate * m_RingBlockAlign;
 
     CCircularRingBuffer* pRing = m_pMiniport ? m_pMiniport->GetSharedBuffer() : NULL;
     if (pRing) {
-        pRing->SetAlignment(blockAlign);
+        pRing->SetAlignment(m_RingBlockAlign);
         if (m_bCapture) {
             // Cushion 50 ms: jarak aman terhadap jitter polling WASAPI (~10 ms).
             // Batas atas 150 ms: kalau backlog melewatinya, buang sampai cushion.
-            pRing->SetPreroll((bytesPerSec * 50) / 1000);
-            pRing->SetLatencyLimit((bytesPerSec * 150) / 1000);
+            pRing->SetPreroll((ringBytesPerSec * 50) / 1000);
+            pRing->SetLatencyLimit((ringBytesPerSec * 150) / 1000);
         }
     }
 
-    m_BytesPerSec = bytesPerSec;
+    m_BytesPerSec = ringBytesPerSec;
     m_BlockAlign = blockAlign;
 
     // Catat format stream ke miniport supaya bisa dibaca lewat IOCTL status.
@@ -527,43 +544,23 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPosition(KSAUDIO_POSITION* pPo
             prevPos = (prevPos / blockAlign) * blockAlign;
             ULONG toTransfer = (ULONG)delta;
 
-            // Tangani pembagian chunk jika posisi melewati batas circular buffer DMA
             BOOLEAN bCableActive = m_pMiniport ? m_pMiniport->IsCableEnabled() : TRUE;
             // Render hanya mengisi ring kalau ada stream capture yang benar-benar
             // berjalan. Tanpa cek ini, ring terisi audio basi saat tidak ada yang
             // merekam dan counter overrun naik tanpa arti.
             BOOLEAN bHasConsumer = m_pMiniport ? m_pMiniport->IsCaptureActive() : TRUE;
-            BOOLEAN bWriteToRing = bCableActive && bHasConsumer;
 
-            if (prevPos + toTransfer <= m_DmaBufferSize) {
-                if (!m_bCapture) {
-                    if (bWriteToRing) {
-                        pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
-                    }
-                } else {
-                    if (bCableActive) {
-                        pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
-                    } else {
-                        RtlZeroMemory((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
-                    }
+            // Transfer dilakukan oleh helper yang juga menormalkan container:
+            // ring selalu 24-bit packed, sedangkan stream bisa 24-in-32.
+            if (!m_bCapture) {
+                if (bCableActive && bHasConsumer) {
+                    TransferRenderChunk(prevPos, toTransfer, blockAlign, pRing);
                 }
             } else {
-                ULONG firstChunk = m_DmaBufferSize - prevPos;
-                firstChunk = (firstChunk / blockAlign) * blockAlign;
-                ULONG secondChunk = toTransfer - firstChunk;
-                if (!m_bCapture) {
-                    if (bWriteToRing) {
-                        pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
-                        pRing->Write((PUCHAR)m_pDmaBuffer, secondChunk);
-                    }
+                if (bCableActive) {
+                    TransferCaptureChunk(prevPos, toTransfer, blockAlign, pRing);
                 } else {
-                    if (bCableActive) {
-                        pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
-                        pRing->Read((PUCHAR)m_pDmaBuffer, secondChunk);
-                    } else {
-                        RtlZeroMemory((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
-                        RtlZeroMemory((PUCHAR)m_pDmaBuffer, secondChunk);
-                    }
+                    ZeroDmaChunk(prevPos, toTransfer);
                 }
             }
             m_LinearPosition += toTransfer;
@@ -594,6 +591,24 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::AllocateAudioBuffer(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
+    // Buffer kerja untuk normalisasi container. Ukuran DMA buffer cukup untuk
+    // kedua arah (versi 32-bit selalu lebih besar dari versi packed 24-bit).
+    if (!m_pConvertA) {
+        m_pConvertA = ExAllocatePool2(POOL_FLAG_NON_PAGED, m_DmaBufferSize, MCVAD_POOL_TAG);
+    }
+    if (!m_pConvertB) {
+        m_pConvertB = ExAllocatePool2(POOL_FLAG_NON_PAGED, m_DmaBufferSize, MCVAD_POOL_TAG);
+    }
+    if (!m_pConvertA || !m_pConvertB) {
+        if (m_pConvertA) { ExFreePoolWithTag(m_pConvertA, MCVAD_POOL_TAG); m_pConvertA = NULL; }
+        if (m_pConvertB) { ExFreePoolWithTag(m_pConvertB, MCVAD_POOL_TAG); m_pConvertB = NULL; }
+        IoFreeMdl(m_pDmaMdl);
+        m_pDmaMdl = NULL;
+        ExFreePoolWithTag(m_pDmaBuffer, MCVAD_POOL_TAG);
+        m_pDmaBuffer = NULL;
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
     MmBuildMdlForNonPagedPool(m_pDmaMdl);
 
     *ppMdl = m_pDmaMdl;
@@ -614,6 +629,100 @@ STDMETHODIMP_(VOID) CMiniportWaveRTStream::FreeAudioBuffer(PMDL pMdl, ULONG Size
             m_pDmaMdl = NULL;
         }
     }
+    if (m_pConvertA) { ExFreePoolWithTag(m_pConvertA, MCVAD_POOL_TAG); m_pConvertA = NULL; }
+    if (m_pConvertB) { ExFreePoolWithTag(m_pConvertB, MCVAD_POOL_TAG); m_pConvertB = NULL; }
+}
+
+//=====================================================================
+// Normalisasi container: ring selalu 24-bit packed (3 byte/sample)
+//=====================================================================
+
+VOID CMiniportWaveRTStream::CopyDmaOut(ULONG offset, ULONG bytes, PVOID pDst) {
+    if (!m_pDmaBuffer || !pDst || offset >= m_DmaBufferSize) return;
+    ULONG first = m_DmaBufferSize - offset;
+    if (first > bytes) first = bytes;
+    RtlCopyMemory(pDst, (PUCHAR)m_pDmaBuffer + offset, first);
+    if (bytes > first) RtlCopyMemory((PUCHAR)pDst + first, m_pDmaBuffer, bytes - first);
+}
+
+VOID CMiniportWaveRTStream::CopyDmaIn(ULONG offset, ULONG bytes, PVOID pSrc) {
+    if (!m_pDmaBuffer || !pSrc || offset >= m_DmaBufferSize) return;
+    ULONG first = m_DmaBufferSize - offset;
+    if (first > bytes) first = bytes;
+    RtlCopyMemory((PUCHAR)m_pDmaBuffer + offset, pSrc, first);
+    if (bytes > first) RtlCopyMemory(m_pDmaBuffer, (PUCHAR)pSrc + first, bytes - first);
+}
+
+VOID CMiniportWaveRTStream::ZeroDmaChunk(ULONG offset, ULONG bytes) {
+    if (!m_pDmaBuffer || offset >= m_DmaBufferSize) return;
+    ULONG first = m_DmaBufferSize - offset;
+    if (first > bytes) first = bytes;
+    RtlZeroMemory((PUCHAR)m_pDmaBuffer + offset, first);
+    if (bytes > first) RtlZeroMemory(m_pDmaBuffer, bytes - first);
+}
+
+VOID CMiniportWaveRTStream::TransferRenderChunk(ULONG prevPos, ULONG bytes, ULONG blockAlign, CCircularRingBuffer* pRing) {
+    if (!m_pDmaBuffer || !pRing || bytes == 0) return;
+
+    if (blockAlign == m_RingBlockAlign) {
+        // Format stream sudah sama dengan format ring: salin langsung.
+        ULONG first = m_DmaBufferSize - prevPos;
+        if (first > bytes) first = bytes;
+        pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, first);
+        if (bytes > first) pRing->Write((PUCHAR)m_pDmaBuffer, bytes - first);
+        return;
+    }
+
+    if (blockAlign == 8 && m_RingBlockAlign == 6 && m_pConvertA && m_pConvertB) {
+        // 24-in-32 (left justified: LSB padding + 3 byte data) -> 24-bit packed.
+        ULONG samples = bytes / blockAlign;
+        CopyDmaOut(prevPos, bytes, m_pConvertA);
+        const UCHAR* src = (const UCHAR*)m_pConvertA;
+        UCHAR* dst = (UCHAR*)m_pConvertB;
+        for (ULONG i = 0; i < samples; i++) {
+            dst[0] = src[1]; dst[1] = src[2]; dst[2] = src[3];
+            src += 4; dst += 3;
+        }
+        pRing->Write((PUCHAR)m_pConvertB, samples * 3);
+        return;
+    }
+
+    // Format tak dikenal: kirim apa adanya (jangan sampai audio hilang total).
+    ULONG first = m_DmaBufferSize - prevPos;
+    if (first > bytes) first = bytes;
+    pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, first);
+    if (bytes > first) pRing->Write((PUCHAR)m_pDmaBuffer, bytes - first);
+}
+
+VOID CMiniportWaveRTStream::TransferCaptureChunk(ULONG prevPos, ULONG bytes, ULONG blockAlign, CCircularRingBuffer* pRing) {
+    if (!m_pDmaBuffer || !pRing || bytes == 0) return;
+
+    if (blockAlign == m_RingBlockAlign) {
+        ULONG first = m_DmaBufferSize - prevPos;
+        if (first > bytes) first = bytes;
+        pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, first);
+        if (bytes > first) pRing->Read((PUCHAR)m_pDmaBuffer, bytes - first);
+        return;
+    }
+
+    if (blockAlign == 8 && m_RingBlockAlign == 6 && m_pConvertA && m_pConvertB) {
+        // 24-bit packed -> 24-in-32 (masukkan padding nol di byte terendah).
+        ULONG samples = bytes / blockAlign;
+        pRing->Read((PUCHAR)m_pConvertB, samples * 3);
+        const UCHAR* src = (const UCHAR*)m_pConvertB;
+        UCHAR* dst = (UCHAR*)m_pConvertA;
+        for (ULONG i = 0; i < samples; i++) {
+            dst[0] = 0; dst[1] = src[0]; dst[2] = src[1]; dst[3] = src[2];
+            src += 3; dst += 4;
+        }
+        CopyDmaIn(prevPos, bytes, m_pConvertA);
+        return;
+    }
+
+    ULONG first = m_DmaBufferSize - prevPos;
+    if (first > bytes) first = bytes;
+    pRing->Read((PUCHAR)m_pDmaBuffer + prevPos, first);
+    if (bytes > first) pRing->Read((PUCHAR)m_pDmaBuffer, bytes - first);
 }
 
 STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetClockRegister(KSRTAUDIO_HWREGISTER* pRegister) {

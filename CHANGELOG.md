@@ -1,5 +1,30 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.0.13] - 2026-11-25
+
+### Fixed
+- **Akar sebenarnya suara "alien / aliran listrik": container sample beda antara sisi Render dan Capture.**
+
+  Diagnostik baru dari 1.0.0.12 membuktikan langsung di mesin (bukan dugaan):
+
+  | Kabel | Render | Capture |
+  |---|---|---|
+  | A–D | `blockAlign=8`, **384.000 B/s** (24-in-32) | `blockAlign=6`, **288.000 B/s** (24-bit packed) |
+  | E | `blockAlign=6`, 288.000 B/s | `blockAlign=6`, 288.000 B/s |
+
+  Selisih 96.000 B/s pada A–D = tepat angka yang menjelaskan ~50 pemotongan/detik (dengung 50 Hz). Pin hanya mengunci **jumlah bit** (24), bukan **lebar container**, sehingga Windows bebas memilih 3 atau 4 byte per sample per endpoint — dan pilihannya berbeda antara Render dan Capture.
+
+  Perbaikan: ring buffer kini punya **format kanonik tetap, PCM 24-bit packed (3 byte/sample)**, dan driver menormalkan container saat transfer:
+  - Render `24-in-32` → packed 24 (buang byte padding terendah, data 24-bit ada di byte 1..3)
+  - Capture packed 24 → `24-in-32` (sisipkan padding nol di byte terendah)
+
+  Jadi berapa pun container yang dinegosiasikan engine, laju byte kedua sisi selalu sama dan tidak ada lagi backlog yang dipotong. Laju acuan ring (`m_BytesPerSec`), alignment, preroll, dan latency limit sekarang dihitung dari format kanonik — bukan dari `nAvgBytesPerSec` stream.
+
+### Changed
+- Buffer kerja non-paged per stream (`m_pConvertA`/`m_pConvertB`) untuk normalisasi; dialokasikan di `AllocateAudioBuffer` dan dilepas di `FreeAudioBuffer`/destruktor.
+- Path pass-through (container sudah sama) tetap tanpa salinan tambahan.
+- **DriverVer**: `1.0.0.12` → `1.0.0.13`.
+
 ## [1.0.0.12] - 2026-11-25
 
 ### Fixed
