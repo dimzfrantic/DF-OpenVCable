@@ -155,6 +155,45 @@ public class DeviceInstaller {
 
 Add-Type -TypeDefinition $Source -ErrorAction Stop
 
+# Helper untuk mengaktifkan privilege token (dibutuhkan untuk mengambil ownership key MMDevices)
+$PrivSource = @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class TokenPrivilege {
+    [StructLayout(LayoutKind.Sequential)] public struct LUID { public uint LowPart; public int HighPart; }
+    [StructLayout(LayoutKind.Sequential)] public struct LUID_AND_ATTRIBUTES { public LUID Luid; public uint Attributes; }
+    [StructLayout(LayoutKind.Sequential)] public struct TOKEN_PRIVILEGES { public uint PrivilegeCount; public LUID_AND_ATTRIBUTES Privilege; }
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    public static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool LookupPrivilegeValue(string system, string name, out LUID luid);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    public static extern bool AdjustTokenPrivileges(IntPtr token, bool disableAll, ref TOKEN_PRIVILEGES newState, uint length, IntPtr previous, IntPtr returnLength);
+    [DllImport("kernel32.dll")] public static extern IntPtr GetCurrentProcess();
+
+    public static bool Enable(string name) {
+        const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
+        const uint TOKEN_QUERY = 0x0008;
+        const uint SE_PRIVILEGE_ENABLED = 0x0002;
+
+        IntPtr token;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out token)) return false;
+        LUID luid;
+        if (!LookupPrivilegeValue(null, name, out luid)) return false;
+
+        TOKEN_PRIVILEGES tp = new TOKEN_PRIVILEGES();
+        tp.PrivilegeCount = 1;
+        tp.Privilege.Luid = luid;
+        tp.Privilege.Attributes = SE_PRIVILEGE_ENABLED;
+        return AdjustTokenPrivileges(token, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+    }
+}
+"@
+
+Add-Type -TypeDefinition $PrivSource -ErrorAction Stop
+
 function Get-McvadAudioEndpoints {
     <#
       Enumerasi endpoint audio milik DF-OpenVCable langsung dari database MMDevices.
@@ -244,15 +283,20 @@ function Show-AudioEndpointSummary {
 
 function Clear-AudioEndpointCache {
     <#
-      Hapus entri MMDevices milik DF-OpenVCable.
+      Hapus paksa entri MMDevices milik DF-OpenVCable supaya AudioEndpointBuilder
+      membuat ulang endpoint dari descriptor driver yang sekarang.
 
-      Catatan penting: key MMDevices di-ACL oleh Windows. BUILTIN\Administrators hanya
-      punya SetValue + ReadKey (TANPA Delete), jadi Remove-Item akan gagal walau elevated.
-      Karena itu fungsi ini bersifat best-effort: kalau gagal, entry dibiarkan.
-      Entry sisa yang sudah tidak terpakai berstatus NOTPRESENT dan TIDAK muncul di
-      Sound Settings, jadi tidak mengganggu; Windows akan membersihkannya sendiri.
+      Kenapa ini perlu: AudioEndpointBuilder MENYIMPAN property store endpoint
+      (PKEY_Device_DeviceDesc) dan mewariskannya lintas update driver, meskipun
+      GUID endpoint berubah. Akibatnya nama lama ("Speakers") menempel terus
+      walaupun descriptor pin di driver sudah benar.
+
+      Kenapa tidak cukup Remove-Item: key MMDevices di-ACL oleh Windows, dan
+      BUILTIN\Administrators hanya punya SetValue + ReadKey (TANPA Delete).
+      Jadi kita ambil ownership dulu (SeTakeOwnershipPrivilege) lalu beri
+      Administrators FullControl, baru dihapus.
     #>
-    Write-Host "[MCVAD] Membersihkan cache endpoint MMDevices milik DF-OpenVCable..." -ForegroundColor Cyan
+    Write-Host "[MCVAD] Menghapus cache endpoint MMDevices milik DF-OpenVCable..." -ForegroundColor Cyan
 
     $eps = @(Get-McvadAudioEndpoints)
     if ($eps.Count -eq 0) {
@@ -260,24 +304,75 @@ function Clear-AudioEndpointCache {
         return
     }
 
+    [TokenPrivilege]::Enable('SeTakeOwnershipPrivilege') | Out-Null
+    [TokenPrivilege]::Enable('SeRestorePrivilege')       | Out-Null
+
     $removed = 0
-    $blocked = 0
+    $failed  = 0
     foreach ($ep in $eps) {
-        try {
-            Remove-Item -LiteralPath $ep.KeyPath -Recurse -Force -ErrorAction Stop
-            $removed++
-        } catch {
-            $blocked++
-        }
+        if (Remove-RegistryKeyForce $ep.KeyPath) { $removed++ } else { $failed++ }
     }
 
     if ($removed -gt 0) {
-        Write-Host "[MCVAD] $removed endpoint berhasil dihapus dari cache." -ForegroundColor Green
+        Write-Host "[MCVAD] $removed endpoint dihapus dari cache - akan dibuat ulang oleh AudioEndpointBuilder." -ForegroundColor Green
     }
-    if ($blocked -gt 0) {
-        Write-Host "[MCVAD] $blocked endpoint dilindungi ACL Windows (butuh SYSTEM) - dilewati." -ForegroundColor Gray
-        Write-Host "        Entry ini akan berstatus NOTPRESENT dan tidak tampil di Sound Settings." -ForegroundColor Gray
+    if ($failed -gt 0) {
+        Write-Host "[MCVAD] $failed endpoint gagal dihapus (jalankan sebagai Administrator)." -ForegroundColor Yellow
     }
+}
+
+function Remove-RegistryKeyForce {
+    param([string]$PsPath)
+
+    # 1) Coba hapus langsung
+    try {
+        Remove-Item -LiteralPath $PsPath -Recurse -Force -ErrorAction Stop
+        return $true
+    } catch { }
+
+    # 2) Ambil ownership, beri FullControl, lalu hapus
+    $sub = $PsPath -replace '^Microsoft\.PowerShell\.Core\\Registry::', '' -replace '^HKLM:\\', ''
+    try {
+        $admins = New-Object System.Security.Principal.NTAccount('BUILTIN', 'Administrators')
+
+        $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+            $sub,
+            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+            [System.Security.AccessControl.RegistryRights]::TakeOwnership)
+        if (-not $key) { return $false }
+
+        $acl = $key.GetAccessControl([System.Security.AccessControl.AccessControlSections]::None)
+        $acl.SetOwner($admins)
+        $key.SetAccessControl($acl)
+        $key.Close()
+
+        $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+            $sub,
+            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+            [System.Security.AccessControl.RegistryRights]::ChangePermissions)
+        if (-not $key) { return $false }
+
+        $acl = $key.GetAccessControl()
+        $rule = New-Object System.Security.AccessControl.RegistryAccessRule(
+            $admins, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
+        $acl.SetAccessRule($rule)
+        $key.SetAccessControl($acl)
+        $key.Close()
+
+        Remove-Item -LiteralPath $PsPath -Recurse -Force -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Restart-AudioServices {
+    Write-Host "[MCVAD] Me-restart AudioEndpointBuilder + Audio Service..." -ForegroundColor Cyan
+    & net stop AudioEndpointBuilder /y 2>&1 | Out-Null
+    Start-Sleep -Milliseconds 800
+    & net start AudioEndpointBuilder 2>&1 | Out-Null
+    & net start audiosrv 2>&1 | Out-Null
+    Start-Sleep -Milliseconds 500
 }
 
 $MediaClassGuid = [Guid]::Parse("{4d36e96c-e325-11ce-bfc1-08002be10318}")
@@ -361,6 +456,10 @@ if ($Remove) {
         Write-Host "        powershell -ExecutionPolicy Bypass -File create_device.ps1 -Cleanup" -ForegroundColor Gray
         & pnputil /scan-devices | Out-Null
     }
+
+    Write-Host ""
+    Write-Host "[MCVAD] Restart layanan audio agar AudioEndpointBuilder membuat ulang endpoint..."
+    Restart-AudioServices
 
     Write-Host ""
     Write-Host "[MCVAD] Ringkasan endpoint audio setelah operasi:" -ForegroundColor Cyan

@@ -26,6 +26,11 @@ HANDLE g_hDevice = INVALID_HANDLE_VALUE;
 MCVAD_ALL_STATUS g_Status;
 int g_CurrentCable = 0;
 
+// TRUE = user sudah mengubah checkbox tapi belum menekan Apply.
+// Selama TRUE, timer status TIDAK boleh menimpa pilihan user (bug: klik uncheck
+// langsung berubah kembali karena UpdateCableUI menulis ulang dari driver).
+bool g_bEnableDirty = false;
+
 const ULONG g_SampleRates[] = { 44100, 48000, 96000, 192000 };
 const ULONG g_BufferSizes[] = { 50, 100, 250, 500, 1000 };
 
@@ -36,9 +41,14 @@ void UpdateCableUI(HWND hWnd) {
     if (DeviceIoControl(g_hDevice, IOCTL_MCVAD_GET_CABLE_STATUS, NULL, 0, &g_Status, sizeof(g_Status), &bytesRet, NULL)) {
         MCVAD_CABLE_INFO* pCable = &g_Status.Cables[g_CurrentCable];
 
-        // Update Checkbox Enable/Disable
-        SendMessage(g_hChkEnable, BM_SETCHECK, pCable->IsEnabled ? BST_CHECKED : BST_UNCHECKED, 0);
-        SetWindowText(g_hChkEnable, pCable->IsEnabled ? L"Cable Enabled (Active)" : L"Cable Disabled (Muted)");
+        // Update Checkbox Enable/Disable.
+        // Kalau user sudah mengubah checkbox tapi belum Apply, pilihan user TIDAK
+        // ditimpa oleh status driver (timer 500 ms).
+        if (!g_bEnableDirty) {
+            SendMessage(g_hChkEnable, BM_SETCHECK, pCable->IsEnabled ? BST_CHECKED : BST_UNCHECKED, 0);
+        }
+        BOOL bCheckedNow = (SendMessage(g_hChkEnable, BM_GETCHECK, 0, 0) == BST_CHECKED);
+        SetWindowText(g_hChkEnable, bCheckedNow ? L"Cable Enabled (Active)" : L"Cable Disabled (Muted)");
 
         // Update Status
         WCHAR szStatus[128];
@@ -82,6 +92,7 @@ void ApplySettings(HWND hWnd) {
 
     DWORD bytesRet = 0;
     if (DeviceIoControl(g_hDevice, IOCTL_MCVAD_SET_CABLE_CONFIG, &req, sizeof(req), NULL, 0, &bytesRet, NULL)) {
+        g_bEnableDirty = false;   // pilihan user sudah dikirim ke driver
         UpdateCableUI(hWnd);
         MessageBox(hWnd, L"Settings applied successfully.", L"Success", MB_OK | MB_ICONINFORMATION);
     } else {
@@ -213,6 +224,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         LPNMHDR lpnmhdr = (LPNMHDR)lParam;
         if (lpnmhdr->idFrom == ID_TAB_CONTROL && lpnmhdr->code == TCN_SELCHANGE) {
             g_CurrentCable = TabCtrl_GetCurSel(g_hTab);
+            g_bEnableDirty = false;   // pindah kabel: checkbox kembali mengikuti driver
             UpdateCableUI(hWnd);
         }
         break;
@@ -226,6 +238,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             ResetStats(hWnd);
             break;
         case ID_CHK_ENABLE:
+            if (HIWORD(wParam) == BN_CLICKED) {
+                // Tandai bahwa state checkbox sekarang milik user, bukan cermin driver.
+                g_bEnableDirty = true;
+                BOOL bChecked = (SendMessage(g_hChkEnable, BM_GETCHECK, 0, 0) == BST_CHECKED);
+                SetWindowText(g_hChkEnable, bChecked ? L"Cable Enabled (Active)" : L"Cable Disabled (Muted)");
+            }
             break;
         }
         break;

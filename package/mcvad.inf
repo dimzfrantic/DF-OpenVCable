@@ -3,7 +3,7 @@ Signature="$WINDOWS NT$"
 Class=MEDIA
 ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
 Provider=%ProviderName%
-DriverVer=11/24/2026,1.0.0.6
+DriverVer=11/25/2026,1.0.0.7
 CatalogFile=mcvad.cat
 PnpLockdown=1
 
@@ -43,6 +43,14 @@ HKR,Drivers\midi\wdmaud.drv,Driver,,wdmaud.drv
 HKR,Drivers\mixer\wdmaud.drv,Driver,,wdmaud.drv
 
 ; Registrasi MediaCategories untuk penamaan pin bridge di Sound Control Panel
+;
+; Dua lokasi ditulis:
+;  1. HKLM\SYSTEM\CurrentControlSet\Control\MediaCategories  (key global, cara lama)
+;  2. HKR\MediaCategories                                    (software key device)
+;
+; Sejak Windows 10 1809 KS membaca software key device LEBIH DULU, dan key global
+; dinyatakan deprecated. Tanpa entri di (2), nama endpoint bisa jatuh ke default
+; form factor ("Speakers") walaupun key global ada.
 HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_A_RENDER%,Name,,%CableA.Desc%
 HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_A_RENDER%,Display,1,00,00,00,00
 HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_A_CAPTURE%,Name,,%CableA.Desc%
@@ -67,6 +75,18 @@ HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_RENDER%,Name,,%CableE.Desc%
 HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_RENDER%,Display,1,00,00,00,00
 HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_CAPTURE%,Name,,%CableE.Desc%
 HKLM,%MediaCategories%\%PINNAME_MCVAD_CABLE_E_CAPTURE%,Display,1,00,00,00,00
+
+; Salinan di software key device (dibaca lebih dulu oleh KS sejak Windows 10 1809)
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_A_RENDER%,Name,,%CableA.Desc%
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_A_CAPTURE%,Name,,%CableA.Desc%
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_B_RENDER%,Name,,%CableB.Desc%
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_B_CAPTURE%,Name,,%CableB.Desc%
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_C_RENDER%,Name,,%CableC.Desc%
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_C_CAPTURE%,Name,,%CableC.Desc%
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_D_RENDER%,Name,,%CableD.Desc%
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_D_CAPTURE%,Name,,%CableD.Desc%
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_E_RENDER%,Name,,%CableE.Desc%
+HKR,MediaCategories\%PINNAME_MCVAD_CABLE_E_CAPTURE%,Name,,%CableE.Desc%
 
 [MCVAD_Device.NT.Interfaces]
 ; Satu kabel = SATU device interface audio.

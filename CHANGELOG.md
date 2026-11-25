@@ -1,5 +1,17 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.0.7] - 2026-11-25
+
+### Fixed
+- **Control Panel: checkbox Enable/Disable kembali tercentang sendiri** (`control_panel/control_panel.cpp`): `UpdateCableUI()` dipanggil timer 500 ms dan selalu menulis ulang status checkbox dari driver, sehingga klik user tertimpa sebelum sempat di-Apply. Ditambahkan flag `g_bEnableDirty` — selama user sudah mengubah checkbox tapi belum menekan Apply, timer tidak menyentuh state-nya. Flag direset saat Apply berhasil dan saat pindah tab. Label teks tetap mengikuti state checkbox, bukan status driver.
+- **Nama endpoint Render tetap "Speakers"** (`package/mcvad.inf`, `package/create_device.ps1`): descriptor pin di binary sudah benar (diverifikasi langsung dari tabel `PCPIN_DESCRIPTOR` di `mcvad.sys`: `Category=KSNODETYPE_SPEAKER`, `Name=PINNAME_MCVAD_CABLE_A_RENDER`), tetapi nama endpoint tidak pernah berubah karena dua hal:
+  - MediaCategories hanya didaftarkan di key global, sedangkan sejak Windows 10 1809 KS membaca **software key device** (`HKR\MediaCategories`) lebih dulu dan key global berstatus deprecated. Kini keduanya didaftarkan.
+  - Property store endpoint di-cache AudioEndpointBuilder dan diwariskan lintas update driver, jadi nama lama menempel. `create_device.ps1` sekarang menghapus paksa entri MMDevices milik DF-OpenVCable dengan mengambil ownership (`SeTakeOwnershipPrivilege` + `SeRestorePrivilege`, lalu FullControl untuk Administrators) karena `BUILTIN\Administrators` tidak punya hak `Delete` pada key tersebut, kemudian me-restart `AudioEndpointBuilder` agar endpoint dibuat ulang dari descriptor driver yang sekarang.
+
+### Changed
+- `create_device.ps1`: fungsi baru `Remove-RegistryKeyForce` dan `Restart-AudioServices`; `Clear-AudioEndpointCache` kini benar-benar menghapus (bukan best-effort) dan melaporkan jumlah yang gagal.
+- **DriverVer**: `1.0.0.6` → `1.0.0.7`.
+
 ## [1.0.0.6] - 2026-11-24
 
 ### Fixed
