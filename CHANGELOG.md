@@ -1,5 +1,30 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.0.9] - 2026-11-25
+
+### Fixed
+- **Audio loopback "lag" lalu berubah jadi distorsi warble/robotik** (`src/minwavert.cpp`, `src/driver.h`, `src/ringbuffer.cpp`). Bukan masalah buffer size — menyetel buffer ke 50 ms tidak berpengaruh karena penyebabnya *sample-rate mismatch* antara dua endpoint satu kabel:
+
+  | Endpoint | Format hasil negosiasi | Byte rate |
+  |---|---|---|
+  | Render `DF-OpenVCable A` | 48000 Hz, 24-bit, 2ch | 288.000 B/s |
+  | Capture `DF-OpenVCable A` | **44100** Hz, 24-bit, 2ch | **264.600** B/s |
+
+  Ring buffer loopback memindahkan PCM mentah per-byte tanpa resampling, jadi capture mengonsumsi 23.400 B/s lebih lambat daripada render menulis. Akibatnya:
+  - backlog tumbuh linear → **latensi naik terus** ("seperti lag"),
+  - audio diputar 44100/48000 = **8,13% lebih lambat** (pitch turun ~1,4 semitone),
+  - setelah ring (768 KB ≈ 2,7 detik) penuh, `Write()` membuang sample tertua pada **setiap** panggilan → diskontinuitas terus-menerus → efek "alien".
+
+  Perbaikan:
+  - `g_PinDataRangesAudio` dikunci ke satu format: 2 ch, 24-bit, **48000 Hz**. Tidak ada lagi rate lain yang bisa dinegosiasikan, jadi kedua sisi selalu identik.
+  - `DEFAULT_CONTAINER_SIZE` 32 → 24 (3 byte/sample, `nBlockAlign` 6) supaya konsisten dengan format yang benar-benar dipakai Windows; perhitungan ukuran ring ikut terkoreksi.
+  - `CCircularRingBuffer`: penjaga latensi (`SetLatencyLimit` / `SetAlignment`). Backlog di atas 100 ms dibuang pada batas frame sebelum dibaca, sehingga latensi tidak bisa tumbuh tanpa batas.
+  - `CMiniportWaveRTStream::SetState`: sisi capture me-`Reset()` ring saat masuk `KSSTATE_RUN`, membuang audio yang menumpuk selama belum ada klien perekam.
+- **Sample rate dari GUI tidak lagi disimpan** (`src/adapter.cpp`): format dikunci 48 kHz, jadi nilai lain hanya akan membuat perhitungan ukuran ring salah. Status yang dilaporkan ke Control Panel selalu 48 kHz (sesuai kenyataan).
+
+### Changed
+- **DriverVer**: `1.0.0.8` → `1.0.0.9`.
+
 ## [1.0.0.8] - 2026-11-25
 
 ### Fixed

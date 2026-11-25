@@ -143,10 +143,15 @@ static const KSDATARANGE_AUDIO g_PinDataRangesAudio[] = {
             { STATICGUIDOF(KSDATAFORMAT_SPECIFIER_WAVEFORMATEX) }
         },
         2,      // MaximumChannels
-        16,     // MinimumBitsPerSample
-        32,     // MaximumBitsPerSample
-        44100,  // MinimumSampleFrequency
-        192000  // MaximumSampleFrequency
+        // Format DIKUNCI ke satu nilai saja (24-bit / 48 kHz / stereo).
+        // Kalau rentang dibiarkan longgar, Windows memilih default berbeda untuk
+        // endpoint Playback (48 kHz) dan Recording (44.1 kHz); karena loopback
+        // memindahkan byte mentah tanpa resampling, selisih rate itu membuat
+        // backlog tumbuh 23.4 KB/detik dan berakhir pada distorsi permanen.
+        24,     // MinimumBitsPerSample
+        24,     // MaximumBitsPerSample
+        48000,  // MinimumSampleFrequency
+        48000   // MaximumSampleFrequency
     }
 };
 
@@ -337,6 +342,23 @@ NTSTATUS CMiniportWaveRTStream::Init(
     if (!m_pFormat) return STATUS_INSUFFICIENT_RESOURCES;
 
     RtlCopyMemory(m_pFormat, DataFormat, sizeof(KSDATAFORMAT_WAVEFORMATEXTENSIBLE));
+
+    // Sinkronkan parameter ring buffer dengan format stream yang benar-benar
+    // dinegosiasikan. Alignment dipakai saat membuang backlog; batas latensi hanya
+    // dipasang oleh sisi capture karena hanya capture yang mengonsumsi ring.
+    ULONG blockAlign = m_pFormat->WaveFormatExt.Format.nBlockAlign;
+    ULONG bytesPerSec = m_pFormat->WaveFormatExt.Format.nAvgBytesPerSec;
+    if (blockAlign == 0) blockAlign = DEFAULT_CHANNELS * (DEFAULT_CONTAINER_SIZE / 8);
+    if (bytesPerSec == 0) bytesPerSec = DEFAULT_SAMPLE_RATE * blockAlign;
+
+    CCircularRingBuffer* pRing = m_pMiniport ? m_pMiniport->GetSharedBuffer() : NULL;
+    if (pRing) {
+        pRing->SetAlignment(blockAlign);
+        if (m_bCapture) {
+            pRing->SetLatencyLimit(bytesPerSec / 10);   // backlog maksimum 100 ms
+        }
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -346,6 +368,15 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::SetState(KSSTATE State) {
         if (State == KSSTATE_RUN) {
             KeQueryPerformanceCounter(&m_StartTime);
             m_LinearPosition = 0;
+
+            // Sisi capture selalu mulai dari ring yang bersih. Tanpa ini, kalau
+            // render sudah jalan beberapa detik sebelum aplikasi recorder dibuka,
+            // capture langsung memutar backlog audio basi (latensi besar) dan
+            // ring cepat overflow.
+            if (m_bCapture) {
+                CCircularRingBuffer* pRing = m_pMiniport ? m_pMiniport->GetSharedBuffer() : NULL;
+                if (pRing) pRing->Reset();
+            }
         } else if (State == KSSTATE_STOP) {
             m_LinearPosition = 0;
             if (m_pDmaBuffer && m_DmaBufferSize > 0) {

@@ -17,6 +17,12 @@ private:
     ULONG           m_OverrunCount;    // Counter buffer overflow
     ULONG           m_UnderrunCount;   // Counter buffer underflow
 
+    // Penjaga latensi: backlog di atas batas ini dibuang (sample tertua) sebelum
+    // dibaca, supaya latensi tidak tumbuh tanpa batas kalau kedua stream sempat
+    // tidak sinkron (mis. capture baru start setelah render jalan beberapa detik).
+    ULONG           m_LatencyLimitBytes;
+    ULONG           m_AlignBytes;      // nBlockAlign, untuk menjaga frame alignment saat trim
+
 public:
     CCircularRingBuffer();
     ~CCircularRingBuffer();
@@ -25,6 +31,10 @@ public:
     VOID     Destroy();
     VOID     Reset();
     NTSTATUS Resize(ULONG newBufferSizeBytes);
+
+    VOID     SetAlignment(ULONG blockAlign)   { m_AlignBytes = blockAlign ? blockAlign : 1; }
+    VOID     SetLatencyLimit(ULONG maxBytes)  { m_LatencyLimitBytes = maxBytes; }
+    ULONG    GetLatencyLimit() const          { return m_LatencyLimitBytes; }
 
     // Dipanggil oleh stream Render (Playback) untuk mengisi buffer audio
     ULONG    Write(PUCHAR pSource, ULONG byteCount);

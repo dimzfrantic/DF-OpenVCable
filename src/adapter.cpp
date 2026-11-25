@@ -273,9 +273,16 @@ NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
                         KdPrint(("[MCVAD] Cable %u Enabled\n", idx));
                     }
 
-                    if (pReq->SampleRate >= 44100 && pReq->SampleRate <= 192000) {
-                        g_ConfiguredSampleRate[idx] = pReq->SampleRate;
+                    // Format stream DIKUNCI 48 kHz / 24-bit / stereo (lihat
+                    // g_PinDataRangesAudio di minwavert.cpp), jadi permintaan ganti
+                    // sample rate dari GUI tidak bisa dihormati. Jangan disimpan:
+                    // perhitungan ukuran ring di bawah memakai nilai ini, dan rate
+                    // yang salah membuat buffer terlalu kecil untuk stream nyata.
+                    if (pReq->SampleRate != 0 && pReq->SampleRate != DEFAULT_SAMPLE_RATE) {
+                        KdPrint(("[MCVAD] Cable %u: sample rate %u diabaikan, format dikunci %u Hz\n",
+                                 idx, pReq->SampleRate, DEFAULT_SAMPLE_RATE));
                     }
+                    g_ConfiguredSampleRate[idx] = DEFAULT_SAMPLE_RATE;
                     if (pReq->BufferDurationMs >= 10 && pReq->BufferDurationMs <= 5000) {
                         g_ConfiguredBufferMs[idx] = pReq->BufferDurationMs;
                         if (g_Cables[idx].pSharedBuffer) {

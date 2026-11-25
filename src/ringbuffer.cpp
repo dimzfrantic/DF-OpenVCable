@@ -7,7 +7,9 @@ CCircularRingBuffer::CCircularRingBuffer() :
     m_ReadOffset(0),
     m_DataAvailable(0),
     m_OverrunCount(0),
-    m_UnderrunCount(0)
+    m_UnderrunCount(0),
+    m_LatencyLimitBytes(0),
+    m_AlignBytes(1)
 {
     KeInitializeSpinLock(&m_Lock);
     m_LastWriteTime.QuadPart = 0;
@@ -153,6 +155,19 @@ ULONG CCircularRingBuffer::Read(PUCHAR pDestination, ULONG byteCount) {
         m_UnderrunCount++;
         KeReleaseSpinLock(&m_Lock, oldIrql);
         return byteCount;
+    }
+
+    // Penjaga latensi: kalau backlog melebihi batas, buang sample TERTUA supaya
+    // latensi kembali terkendali. Tanpa ini, capture yang baru mulai beberapa detik
+    // setelah render akan memutar audio basi dengan latensi sebesar isi buffer.
+    if (m_LatencyLimitBytes > 0 && m_DataAvailable > m_LatencyLimitBytes) {
+        ULONG drop = m_DataAvailable - m_LatencyLimitBytes;
+        drop = (drop / m_AlignBytes) * m_AlignBytes;   // jaga batas frame PCM
+        if (drop > 0) {
+            m_ReadOffset = (m_ReadOffset + drop) % m_BufferSize;
+            m_DataAvailable -= drop;
+            m_OverrunCount++;
+        }
     }
 
     ULONG toRead = byteCount;

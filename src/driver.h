@@ -23,11 +23,17 @@ enum CABLE_INDEX {
     CABLE_E = 4  // Virtual Cable E
 };
 
-// Default format audio virtual
+// Default format audio virtual.
+//
+// PENTING: pin Render dan pin Capture WAJIB menegosiasikan format yang identik
+// (sample rate + container size). Loopback antar-kabel memindahkan PCM mentah
+// lewat ring buffer byte-based tanpa resampling, jadi kalau kedua sisi beda rate
+// (mis. Render 48 kHz vs Capture 44.1 kHz) backlog tumbuh linear, latensi naik
+// terus, dan akhirnya overflow terus-menerus -> suara warble/robotik.
 #define DEFAULT_SAMPLE_RATE         48000
 #define DEFAULT_CHANNELS            2
 #define DEFAULT_BITS_PER_SAMPLE     24
-#define DEFAULT_CONTAINER_SIZE      32
+#define DEFAULT_CONTAINER_SIZE      24   // 24-bit = 3 byte/sample -> nBlockAlign 6
 #define BUFFER_DURATION_SECONDS     2   // Ukuran buffer memori loopback: 2 detik PCM
 
 // Forward declarations
