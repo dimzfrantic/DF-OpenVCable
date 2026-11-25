@@ -15,6 +15,8 @@
 ### Changed
 - **Reference string subdevice Topology di-bump** `CableX_Topo` → `CableX_Topo_v2` (`src/adapter.cpp` + `package/mcvad.inf`, keduanya harus identik). Tanpa ini, `AudioEndpointBuilder` memakai ulang endpoint key yang sama dan nama `"Speakers"` yang ter-cache dari build sebelumnya tetap menempel walau descriptor driver sudah berubah. Konsekuensi: 10 endpoint dibuat ulang dengan ID baru, sehingga pengaturan per-aplikasi (volume/format) untuk endpoint lama kembali ke default.
 - **DriverVer**: `1.0.0.7` → `1.0.0.8`.
+- **`create_device.ps1`: fungsi `Stop-McvadDriver`** — memaksa unload driver sebelum devnode dihapus/dibuat ulang, dipanggil dari `-Cleanup` dan `-Remove`. Tanpa ini PnP memakai ulang image driver yang masih termuat, sehingga devnode baru tetap memakai `PCPIN_DESCRIPTOR` lama walaupun `ImagePath` sudah menunjuk ke binary baru. Gejalanya: interface `CableA_Topo` (lama) dan `CableA_Topo_v2` (baru) muncul bersamaan, endpoint baru tetap bernama `Speakers` dengan form factor 1, dan endpoint-nya menunjuk ke path pin `cablea_topo` bukan `cablea_topo_v2`.
+- **`reload_driver.bat` (baru)**: satu klik untuk recovery — unload paksa, hapus devnode + cache endpoint, buat ulang devnode, restart audio service, lalu verifikasi.
 - Endpoint Render kini muncul dengan form factor line-level (bukan speaker) di Sound Settings — konsekuensi langsung dari kategori baru, dan memang lebih tepat untuk virtual cable.
 
 ## [1.0.0.7] - 2026-11-25

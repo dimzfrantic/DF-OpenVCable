@@ -3,7 +3,7 @@ Signature="$WINDOWS NT$"
 Class=MEDIA
 ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
 Provider=%ProviderName%
-DriverVer=11/25/2026,1.0.0.7
+DriverVer=11/25/2026,1.0.0.8
 CatalogFile=mcvad.cat
 PnpLockdown=1
 
@@ -108,35 +108,35 @@ AddInterface=%KSCATEGORY_AUDIO%,"CableA",MCVAD.Interface.CableA
 AddInterface=%KSCATEGORY_RENDER%,"CableA",MCVAD.Interface.CableA
 AddInterface=%KSCATEGORY_CAPTURE%,"CableA",MCVAD.Interface.CableA
 AddInterface=%KSCATEGORY_REALTIME%,"CableA",MCVAD.Interface.CableA
-AddInterface=%KSCATEGORY_TOPOLOGY%,"CableA_Topo",MCVAD.Interface.CableA_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableA_Topo_v2",MCVAD.Interface.CableA_Topo
 
 ; Cable B
 AddInterface=%KSCATEGORY_AUDIO%,"CableB",MCVAD.Interface.CableB
 AddInterface=%KSCATEGORY_RENDER%,"CableB",MCVAD.Interface.CableB
 AddInterface=%KSCATEGORY_CAPTURE%,"CableB",MCVAD.Interface.CableB
 AddInterface=%KSCATEGORY_REALTIME%,"CableB",MCVAD.Interface.CableB
-AddInterface=%KSCATEGORY_TOPOLOGY%,"CableB_Topo",MCVAD.Interface.CableB_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableB_Topo_v2",MCVAD.Interface.CableB_Topo
 
 ; Cable C
 AddInterface=%KSCATEGORY_AUDIO%,"CableC",MCVAD.Interface.CableC
 AddInterface=%KSCATEGORY_RENDER%,"CableC",MCVAD.Interface.CableC
 AddInterface=%KSCATEGORY_CAPTURE%,"CableC",MCVAD.Interface.CableC
 AddInterface=%KSCATEGORY_REALTIME%,"CableC",MCVAD.Interface.CableC
-AddInterface=%KSCATEGORY_TOPOLOGY%,"CableC_Topo",MCVAD.Interface.CableC_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableC_Topo_v2",MCVAD.Interface.CableC_Topo
 
 ; Cable D
 AddInterface=%KSCATEGORY_AUDIO%,"CableD",MCVAD.Interface.CableD
 AddInterface=%KSCATEGORY_RENDER%,"CableD",MCVAD.Interface.CableD
 AddInterface=%KSCATEGORY_CAPTURE%,"CableD",MCVAD.Interface.CableD
 AddInterface=%KSCATEGORY_REALTIME%,"CableD",MCVAD.Interface.CableD
-AddInterface=%KSCATEGORY_TOPOLOGY%,"CableD_Topo",MCVAD.Interface.CableD_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableD_Topo_v2",MCVAD.Interface.CableD_Topo
 
 ; Cable E
 AddInterface=%KSCATEGORY_AUDIO%,"CableE",MCVAD.Interface.CableE
 AddInterface=%KSCATEGORY_RENDER%,"CableE",MCVAD.Interface.CableE
 AddInterface=%KSCATEGORY_CAPTURE%,"CableE",MCVAD.Interface.CableE
 AddInterface=%KSCATEGORY_REALTIME%,"CableE",MCVAD.Interface.CableE
-AddInterface=%KSCATEGORY_TOPOLOGY%,"CableE_Topo",MCVAD.Interface.CableE_Topo
+AddInterface=%KSCATEGORY_TOPOLOGY%,"CableE_Topo_v2",MCVAD.Interface.CableE_Topo
 
 ; --- Interface AddReg Sections ---
 [MCVAD.Interface.CableA]

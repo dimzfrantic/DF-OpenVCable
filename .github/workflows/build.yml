@@ -236,6 +236,7 @@ jobs:
           Copy-Item package/setup_cert.bat $pkg/ -Force
           Copy-Item package/repair.bat $pkg/ -Force
           Copy-Item package/update_driver.bat $pkg/ -Force
+          Copy-Item package/reload_driver.bat $pkg/ -Force
           Copy-Item control_panel/control_panel.exe $pkg/ -Force -ErrorAction SilentlyContinue
           Copy-Item control_panel/mcvad_control_panel.py $pkg/ -Force
           Copy-Item README.md $pkg/ -Force -ErrorAction SilentlyContinue

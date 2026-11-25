@@ -366,6 +366,48 @@ function Remove-RegistryKeyForce {
     }
 }
 
+function Stop-McvadDriver {
+    # PENTING: PnP akan MEMAKAI ULANG image driver yang sudah termuat kalau service
+    # kernel `mcvad` masih Running ketika devnode baru dibuat. Akibatnya devnode baru
+    # tetap memakai tabel PCPIN_DESCRIPTOR lama — mis. pin Render masih terbaca
+    # KSNODETYPE_SPEAKER sehingga endpoint tetap bernama "Speakers" dengan form factor
+    # speaker, walaupun binary di DriverStore sudah versi baru (ImagePath sudah menunjuk
+    # ke folder DriverStore yang baru). Gejala khasnya: interface lama dan baru
+    # (mis. CableA_Topo dan CableA_Topo_v2) muncul bersamaan di DeviceClasses.
+    # Karena itu driver harus di-unload dulu sebelum devnode dihapus/dibuat ulang.
+    $devs = @(Get-PnpDevice -ErrorAction SilentlyContinue |
+              Where-Object { $_.InstanceId -like 'ROOT\MCVAD*' -or
+                             ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*') })
+    if ($devs.Count -eq 0) {
+        Write-Host "[MCVAD] Tidak ada devnode DF-OpenVCable untuk di-unload." -ForegroundColor Gray
+        return
+    }
+
+    Write-Host ("[MCVAD] Memaksa unload driver mcvad ({0} devnode)..." -f $devs.Count) -ForegroundColor Cyan
+    foreach ($d in $devs) {
+        try {
+            Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction Stop
+        } catch {
+            Write-Host ("[MCVAD]   disable gagal: " + $d.InstanceId + " - " + $_.Exception.Message) -ForegroundColor Yellow
+        }
+    }
+
+    # Tunggu sampai image benar-benar dilepas (maks 20 detik).
+    for ($i = 0; $i -lt 40; $i++) {
+        $svc = Get-Service mcvad -ErrorAction SilentlyContinue
+        if (-not $svc -or $svc.Status -ne 'Running') { break }
+        Start-Sleep -Milliseconds 500
+    }
+
+    $svc = Get-Service mcvad -ErrorAction SilentlyContinue
+    $state = if ($svc) { $svc.Status } else { 'tidak ada' }
+    Write-Host "[MCVAD] Status service mcvad setelah unload: $state" -ForegroundColor Gray
+    if ($state -eq 'Running') {
+        Write-Host "[MCVAD] PERINGATAN: driver masih termuat. Devnode baru akan memakai binary lama." -ForegroundColor Yellow
+        Write-Host "        Restart Windows lalu jalankan ulang skrip ini." -ForegroundColor Yellow
+    }
+}
+
 function Restart-AudioServices {
     Write-Host "[MCVAD] Me-restart AudioEndpointBuilder + Audio Service..." -ForegroundColor Cyan
     & net stop AudioEndpointBuilder /y 2>&1 | Out-Null
@@ -388,6 +430,7 @@ if ($Verify) {
 
 if ($Remove) {
     Write-Host "[MCVAD] Menghapus SEMUA root device node: $HardwareId..." -ForegroundColor Yellow
+    Stop-McvadDriver
     $res = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
 
     # Sisa instance yang masih tertinggal dihapus lewat pnputil (DIF_REMOVE bisa
@@ -416,6 +459,7 @@ if ($Remove) {
 
     if ($Cleanup -and $existing -gt 0) {
         Write-Host "[MCVAD] Cleanup: menghapus $existing devnode duplikat..." -ForegroundColor Yellow
+        Stop-McvadDriver
         $null = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
 
         # Bersihkan sisa instance via pnputil sebelum devnode dibuat ulang.
