@@ -17,6 +17,11 @@ private:
     ULONG           m_OverrunCount;    // Counter buffer overflow
     ULONG           m_UnderrunCount;   // Counter buffer underflow
 
+    // Rincian pembuangan data, dipisah supaya bisa didiagnosis
+    ULONG           m_TrimCount;       // jumlah kejadian trim latensi
+    ULONG           m_TrimBytes;       // total byte dibuang oleh trim
+    ULONG           m_FullDropBytes;   // total byte dibuang karena ring penuh
+
     // Penjaga latensi: backlog di atas batas ini dibuang (sample tertua) sebelum
     // dibaca, supaya latensi tidak tumbuh tanpa batas kalau kedua stream sempat
     // tidak sinkron (mis. capture baru start setelah render jalan beberapa detik).
@@ -53,5 +58,8 @@ public:
     ULONG    GetBufferSize() const { return m_BufferSize; }
     ULONG    GetOverrunCount() const { return m_OverrunCount; }
     ULONG    GetUnderrunCount() const { return m_UnderrunCount; }
+    ULONG    GetTrimCount() const { return m_TrimCount; }
+    ULONG    GetTrimBytes() const { return m_TrimBytes; }
+    ULONG    GetFullDropBytes() const { return m_FullDropBytes; }
     VOID     ResetStats();
 };

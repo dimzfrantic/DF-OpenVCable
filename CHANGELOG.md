@@ -1,5 +1,26 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.0.12] - 2026-11-25
+
+### Fixed
+- **Suara "alien / seperti aliran listrik"** (`src/minwavert.cpp`): `DataRangeIntersection` mengabaikan `ClientDataRange` dan **selalu** membalas 24-bit/48 kHz. Aplikasi yang meminta format lain tetap mendapat `STATUS_SUCCESS` dengan format yang tidak dimintanya, lalu menafsirkan byte dengan format berbeda. Karena loopback memindahkan PCM mentah per-byte, laju byte sisi Capture jadi tidak sama dengan Render → backlog menumpuk, dipotong terus-menerus, dan suara terdengar robotik/dengung.
+
+  Gejala terukur sebelum perbaikan (30 detik, kabel A, sedang memutar):
+  - `fill` berayun 11.262 → 58.014 byte
+  - **overrun +1.494 (≈ 50/detik)** — 50 kali pemotongan per detik inilah yang terdengar seperti dengung 50 Hz ("aliran listrik")
+  - `underrun +0` (pre-roll cushion dari 1.0.0.10 sudah bekerja)
+
+  Perbaikan: `DataRangeIntersection` sekarang memvalidasi `ClientDataRange` (MajorFormat/SubFormat PCM + batas channels/bits/sample rate) dan mengembalikan `STATUS_NO_MATCH` kalau permintaan klien tidak cocok dengan format terkunci 48 kHz/24-bit/stereo. Aplikasi yang meminta format lain akan ditolak dan jatuh ke shared mode (di-convert oleh audio engine), bukan diam-diam menghasilkan stream yang rusak.
+
+### Added
+- **Diagnostik format stream & rincian pembuangan data** (`src/mcvad_ioctl.h`, `src/adapter.cpp`, `src/minwavert.h`, `src/ringbuffer.h`). `MCVAD_CABLE_INFO` diperluas dengan:
+  - `RenderBlockAlign`, `RenderBytesPerSec`, `CaptureBlockAlign`, `CaptureBytesPerSec` — format yang **benar-benar** dinegosiasikan tiap sisi. Kalau pasangan ini berbeda, loopback pasti drift; ini indikator paling langsung.
+  - `TrimCount`, `TrimBytes` (dibuang karena batas latensi) dan `FullDropBytes` (dibuang karena ring penuh) — memisahkan dua penyebab overrun yang sebelumnya tercampur di satu counter.
+- `IsRenderActive` / `IsCaptureActive` kini benar-benar diisi dari jumlah stream yang berjalan (sebelumnya selalu `0`, sehingga Control Panel selalu menampilkan "Idle" walau sedang streaming).
+
+### Changed
+- **DriverVer**: `1.0.0.11` → `1.0.0.12`.
+
 ## [1.0.0.11] - 2026-11-25
 
 ### Fixed

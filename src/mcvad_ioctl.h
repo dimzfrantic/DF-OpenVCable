@@ -37,6 +37,18 @@ typedef struct _MCVAD_CABLE_INFO {
     BOOLEAN     IsRenderActive;        // Apakah ada aplikasi yang sedang play audio
     BOOLEAN     IsCaptureActive;       // Apakah ada aplikasi yang sedang record/listen
     BOOLEAN     IsEnabled;             // Status aktif kabel virtual (TRUE = aktif, FALSE = disable)
+
+    // Diagnostik format stream yang BENAR-BENAR dinegosiasikan (bukan format endpoint).
+    // Kalau pasangan ini tidak sama, loopback byte-based akan drift dan suara rusak.
+    ULONG       RenderBlockAlign;
+    ULONG       RenderBytesPerSec;
+    ULONG       CaptureBlockAlign;
+    ULONG       CaptureBytesPerSec;
+
+    // Rincian pembuangan data: trim latensi vs ring penuh
+    ULONG       TrimCount;             // berapa kali backlog dipotong karena batas latensi
+    ULONG       TrimBytes;             // total byte dibuang oleh trim
+    ULONG       FullDropBytes;         // total byte dibuang karena ring penuh
 } MCVAD_CABLE_INFO, *PMCVAD_CABLE_INFO;
 
 typedef struct _MCVAD_ALL_STATUS {

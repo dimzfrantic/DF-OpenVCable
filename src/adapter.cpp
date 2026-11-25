@@ -327,6 +327,19 @@ NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
                         pStatus->Cables[i].CurrentBufferFill = g_Cables[i].pSharedBuffer->GetDataAvailable();
                         pStatus->Cables[i].OverrunCount = g_Cables[i].pSharedBuffer->GetOverrunCount();
                         pStatus->Cables[i].UnderrunCount = g_Cables[i].pSharedBuffer->GetUnderrunCount();
+                        pStatus->Cables[i].TrimCount = g_Cables[i].pSharedBuffer->GetTrimCount();
+                        pStatus->Cables[i].TrimBytes = g_Cables[i].pSharedBuffer->GetTrimBytes();
+                        pStatus->Cables[i].FullDropBytes = g_Cables[i].pSharedBuffer->GetFullDropBytes();
+                    }
+                    // Status aktivitas + format stream aktual (diagnosa drift)
+                    if (g_Cables[i].pMiniport) {
+                        CMiniportWaveRT* pWave = (CMiniportWaveRT*)g_Cables[i].pMiniport;
+                        pStatus->Cables[i].IsRenderActive = pWave->IsRenderActive() ? TRUE : FALSE;
+                        pStatus->Cables[i].IsCaptureActive = pWave->IsCaptureActive() ? TRUE : FALSE;
+                        pStatus->Cables[i].RenderBlockAlign = pWave->GetRenderBlockAlign();
+                        pStatus->Cables[i].RenderBytesPerSec = pWave->GetRenderBytesPerSec();
+                        pStatus->Cables[i].CaptureBlockAlign = pWave->GetCaptureBlockAlign();
+                        pStatus->Cables[i].CaptureBytesPerSec = pWave->GetCaptureBytesPerSec();
                     }
                 }
                 bytesReturned = sizeof(MCVAD_ALL_STATUS);

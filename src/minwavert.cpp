@@ -28,7 +28,12 @@ CMiniportWaveRT::CMiniportWaveRT(PUNKNOWN pUnknownOuter) :
     m_pSharedBuffer(NULL),
     m_pbEnabled(NULL),
     m_pPort(NULL),
-    m_CaptureStreamCount(0)
+    m_CaptureStreamCount(0),
+    m_RenderStreamCount(0),
+    m_RenderBlockAlign(0),
+    m_RenderBytesPerSec(0),
+    m_CaptureBlockAlign(0),
+    m_CaptureBytesPerSec(0)
 {
     PAGED_CODE();
 }
@@ -259,6 +264,31 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRT::DataRangeIntersection(
         return STATUS_INVALID_PARAMETER;
     }
 
+    // Format driver DIKUNCI 48 kHz / 24-bit / stereo, jadi permintaan klien harus
+    // kompatibel dengan itu. Kalau tidak, kembalikan STATUS_NO_MATCH.
+    //
+    // Sebelum ini fungsi mengabaikan ClientDataRange dan selalu membalas 24-bit:
+    // aplikasi yang meminta format lain tetap "berhasil" lalu menafsirkan byte
+    // dengan format berbeda. Akibatnya laju byte sisi Capture tidak sama dengan
+    // sisi Render (loopback byte-based jadi drift) dan suara terdengar robotik.
+    if (!IsEqualGUIDAligned(ClientDataRange->MajorFormat, KSDATAFORMAT_TYPE_AUDIO) ||
+        !IsEqualGUIDAligned(ClientDataRange->SubFormat, KSDATAFORMAT_SUBTYPE_PCM)) {
+        *ResultantFormatLength = 0;
+        return STATUS_NO_MATCH;
+    }
+
+    if (ClientDataRange->FormatSize >= sizeof(KSDATARANGE_AUDIO)) {
+        const KSDATARANGE_AUDIO* pAudio = (const KSDATARANGE_AUDIO*)ClientDataRange;
+        if (DEFAULT_CHANNELS > pAudio->MaximumChannels ||
+            DEFAULT_BITS_PER_SAMPLE < pAudio->MinimumBitsPerSample ||
+            DEFAULT_BITS_PER_SAMPLE > pAudio->MaximumBitsPerSample ||
+            DEFAULT_SAMPLE_RATE < pAudio->MinimumSampleFrequency ||
+            DEFAULT_SAMPLE_RATE > pAudio->MaximumSampleFrequency) {
+            *ResultantFormatLength = 0;
+            return STATUS_NO_MATCH;
+        }
+    }
+
     ULONG requiredSize = sizeof(KSDATAFORMAT_WAVEFORMATEXTENSIBLE);
     *ResultantFormatLength = requiredSize;
 
@@ -317,9 +347,10 @@ CMiniportWaveRTStream::CMiniportWaveRTStream(PUNKNOWN pUnknownOuter) :
 }
 
 CMiniportWaveRTStream::~CMiniportWaveRTStream() {
-    // Lepas hitungan capture kalau stream dihancurkan tanpa SetState(STOP).
-    if (m_bCapture && m_pMiniport && m_State == KSSTATE_RUN) {
-        m_pMiniport->CaptureStreamStopped();
+    // Lepas hitungan stream kalau dihancurkan tanpa SetState(STOP).
+    if (m_pMiniport && m_State == KSSTATE_RUN) {
+        if (m_bCapture) m_pMiniport->CaptureStreamStopped();
+        else            m_pMiniport->RenderStreamStopped();
         m_State = KSSTATE_STOP;
     }
     if (m_pDmaBuffer && m_pDmaMdl) {
@@ -373,6 +404,11 @@ NTSTATUS CMiniportWaveRTStream::Init(
     m_BytesPerSec = bytesPerSec;
     m_BlockAlign = blockAlign;
 
+    // Catat format stream ke miniport supaya bisa dibaca lewat IOCTL status.
+    if (m_pMiniport) {
+        m_pMiniport->SetStreamFormat(m_bCapture, blockAlign, bytesPerSec);
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -382,13 +418,21 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::SetState(KSSTATE State) {
     KSSTATE oldState = m_State;
     m_State = State;
 
-    // Lacak jumlah stream capture yang benar-benar berjalan. Sisi render memakai
-    // angka ini supaya tidak menulis ke ring saat tidak ada konsumen.
-    if (m_bCapture && m_pMiniport) {
-        if (oldState != KSSTATE_RUN && State == KSSTATE_RUN) {
-            m_pMiniport->CaptureStreamStarted();
-        } else if (oldState == KSSTATE_RUN && State != KSSTATE_RUN) {
-            m_pMiniport->CaptureStreamStopped();
+    // Lacak jumlah stream yang benar-benar berjalan per arah. Sisi render memakai
+    // angka capture untuk berhenti menulis ke ring saat tidak ada konsumen.
+    if (m_pMiniport) {
+        if (m_bCapture) {
+            if (oldState != KSSTATE_RUN && State == KSSTATE_RUN) {
+                m_pMiniport->CaptureStreamStarted();
+            } else if (oldState == KSSTATE_RUN && State != KSSTATE_RUN) {
+                m_pMiniport->CaptureStreamStopped();
+            }
+        } else {
+            if (oldState != KSSTATE_RUN && State == KSSTATE_RUN) {
+                m_pMiniport->RenderStreamStarted();
+            } else if (oldState == KSSTATE_RUN && State != KSSTATE_RUN) {
+                m_pMiniport->RenderStreamStopped();
+            }
         }
     }
 

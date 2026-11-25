@@ -8,6 +8,9 @@ CCircularRingBuffer::CCircularRingBuffer() :
     m_DataAvailable(0),
     m_OverrunCount(0),
     m_UnderrunCount(0),
+    m_TrimCount(0),
+    m_TrimBytes(0),
+    m_FullDropBytes(0),
     m_LatencyLimitBytes(0),
     m_AlignBytes(1),
     m_PrerollBytes(0)
@@ -76,6 +79,9 @@ VOID CCircularRingBuffer::ResetStats() {
     KeAcquireSpinLock(&m_Lock, &oldIrql);
     m_OverrunCount = 0;
     m_UnderrunCount = 0;
+    m_TrimCount = 0;
+    m_TrimBytes = 0;
+    m_FullDropBytes = 0;
     KeReleaseSpinLock(&m_Lock, oldIrql);
 }
 
@@ -124,6 +130,7 @@ ULONG CCircularRingBuffer::Write(PUCHAR pSource, ULONG byteCount) {
         m_ReadOffset = (m_ReadOffset + overflowBytes) % m_BufferSize;
         m_DataAvailable -= overflowBytes;
         m_OverrunCount++;
+        m_FullDropBytes += overflowBytes;
     }
 
     // Tulis ke buffer memori sirkular (tangani wrap-around jika mencapai akhir buffer)
@@ -192,6 +199,8 @@ ULONG CCircularRingBuffer::Read(PUCHAR pDestination, ULONG byteCount) {
             m_ReadOffset = (m_ReadOffset + drop) % m_BufferSize;
             m_DataAvailable -= drop;
             m_OverrunCount++;
+            m_TrimCount++;
+            m_TrimBytes += drop;
         }
     }
 

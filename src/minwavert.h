@@ -83,6 +83,15 @@ private:
     // memakai ini supaya tidak menumpuk audio ke ring saat tidak ada konsumen
     // (kalau tetap menulis, ring penuh dan counter overrun naik tanpa arti).
     volatile LONG           m_CaptureStreamCount;
+    volatile LONG           m_RenderStreamCount;
+
+    // Format stream yang benar-benar dinegosiasikan tiap sisi. Dipakai untuk
+    // diagnosa: kalau RenderBytesPerSec != CaptureBytesPerSec, loopback byte-based
+    // pasti drift dan suara rusak.
+    volatile LONG           m_RenderBlockAlign;
+    volatile LONG           m_RenderBytesPerSec;
+    volatile LONG           m_CaptureBlockAlign;
+    volatile LONG           m_CaptureBytesPerSec;
 
 public:
     DECLARE_STD_UNKNOWN();
@@ -121,4 +130,22 @@ public:
     VOID                    CaptureStreamStarted() { InterlockedIncrement(&m_CaptureStreamCount); }
     VOID                    CaptureStreamStopped() { InterlockedDecrement(&m_CaptureStreamCount); }
     BOOLEAN                 IsCaptureActive() const { return m_CaptureStreamCount > 0; }
+
+    VOID                    RenderStreamStarted() { InterlockedIncrement(&m_RenderStreamCount); }
+    VOID                    RenderStreamStopped() { InterlockedDecrement(&m_RenderStreamCount); }
+    BOOLEAN                 IsRenderActive() const { return m_RenderStreamCount > 0; }
+
+    VOID                    SetStreamFormat(BOOLEAN bCapture, ULONG blockAlign, ULONG bytesPerSec) {
+        if (bCapture) {
+            m_CaptureBlockAlign = (LONG)blockAlign;
+            m_CaptureBytesPerSec = (LONG)bytesPerSec;
+        } else {
+            m_RenderBlockAlign = (LONG)blockAlign;
+            m_RenderBytesPerSec = (LONG)bytesPerSec;
+        }
+    }
+    ULONG                   GetRenderBlockAlign() const { return (ULONG)m_RenderBlockAlign; }
+    ULONG                   GetRenderBytesPerSec() const { return (ULONG)m_RenderBytesPerSec; }
+    ULONG                   GetCaptureBlockAlign() const { return (ULONG)m_CaptureBlockAlign; }
+    ULONG                   GetCaptureBytesPerSec() const { return (ULONG)m_CaptureBytesPerSec; }
 };
