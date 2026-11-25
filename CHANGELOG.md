@@ -1,5 +1,22 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.0.8] - 2026-11-25
+
+### Fixed
+- **Nama endpoint Render tetap "Speakers" — akar masalah sebenarnya ditemukan** (`src/mintopo.cpp`). Perbaikan di 1.0.0.7 (registrasi `MediaCategories` di software key + purge `MMDevices`) **tidak bekerja**, dan penyebabnya bukan registry. Bukti dari mesin uji:
+  - `KSPROPERTY_PIN_NAME` pada bridge pin Render (`cablea_topo` pin 1) **sudah** mengembalikan `"DF-OpenVCable A"`.
+  - Software key `HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e96c-...}\0010\MediaCategories` **sudah** memuat lengkap 10 entri dengan nama benar.
+  - Tetapi endpoint Render tetap `PKEY_Device_DeviceDesc = "Speakers"` dengan ikon `mmres.dll,-3010`, sedangkan endpoint Capture pada filter yang sama memakai nama custom dengan ikon `mmres.dll,-3014`.
+
+  Kesimpulannya: `AudioEndpointBuilder` memperlakukan pin bridge berkategori **`KSNODETYPE_SPEAKER`** sebagai kasus khusus — nama dan ikon dipaksa ke default form factor speaker dan hasil `KSPROPERTY_PIN_NAME` diabaikan. Ini perilaku OS, bukan bug konfigurasi; kategori `KSNODETYPE_MICROPHONE` pada pin Capture tidak terkena special-case, itulah sebabnya Capture selalu benar.
+
+  Perbaikan: `Category` bridge pin Render diganti dari `KSNODETYPE_SPEAKER` → **`KSNODETYPE_LINE_CONNECTOR`** (`DFF21FE3-F70F-11D0-B917-00A0C9223196`). Ini pola yang sama dipakai driver referensi VB-Audio untuk pin render "CABLE In 16ch". `Name` GUID custom (`PINNAME_MCVAD_CABLE_*_RENDER`) tidak berubah, jadi `MediaCategories` tetap menjadi sumber nama.
+
+### Changed
+- **Reference string subdevice Topology di-bump** `CableX_Topo` → `CableX_Topo_v2` (`src/adapter.cpp` + `package/mcvad.inf`, keduanya harus identik). Tanpa ini, `AudioEndpointBuilder` memakai ulang endpoint key yang sama dan nama `"Speakers"` yang ter-cache dari build sebelumnya tetap menempel walau descriptor driver sudah berubah. Konsekuensi: 10 endpoint dibuat ulang dengan ID baru, sehingga pengaturan per-aplikasi (volume/format) untuk endpoint lama kembali ke default.
+- **DriverVer**: `1.0.0.7` → `1.0.0.8`.
+- Endpoint Render kini muncul dengan form factor line-level (bukan speaker) di Sound Settings — konsekuensi langsung dari kategori baru, dan memang lebih tepat untuk virtual cable.
+
 ## [1.0.0.7] - 2026-11-25
 
 ### Fixed

@@ -23,12 +23,18 @@ const PCWSTR g_CableSubdeviceNames[MAX_CABLES] = {
     L"CableE"
 };
 
+// Reference string subdevice Topology.
+//
+// Suffix "_v2" WAJIB sama persis dengan AddInterface=%KSCATEGORY_TOPOLOGY% di mcvad.inf.
+// Bumping string ini mengubah device interface path, sehingga AudioEndpointBuilder
+// memperlakukannya sebagai endpoint baru dan membuang cache PKEY_Device_DeviceDesc
+// lama (tanpa ini, nama "Speakers" dari build sebelumnya tetap menempel).
 const PCWSTR g_CableTopoSubdeviceNames[MAX_CABLES] = {
-    L"CableA_Topo",
-    L"CableB_Topo",
-    L"CableC_Topo",
-    L"CableD_Topo",
-    L"CableE_Topo"
+    L"CableA_Topo_v2",
+    L"CableB_Topo_v2",
+    L"CableC_Topo_v2",
+    L"CableD_Topo_v2",
+    L"CableE_Topo_v2"
 };
 
 // Global array konteks virtual cable
