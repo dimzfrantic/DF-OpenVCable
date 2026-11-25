@@ -9,7 +9,8 @@ CCircularRingBuffer::CCircularRingBuffer() :
     m_OverrunCount(0),
     m_UnderrunCount(0),
     m_LatencyLimitBytes(0),
-    m_AlignBytes(1)
+    m_AlignBytes(1),
+    m_PrerollBytes(0)
 {
     KeInitializeSpinLock(&m_Lock);
     m_LastWriteTime.QuadPart = 0;
@@ -149,7 +150,27 @@ ULONG CCircularRingBuffer::Read(PUCHAR pDestination, ULONG byteCount) {
     KIRQL oldIrql;
     KeAcquireSpinLock(&m_Lock, &oldIrql);
 
-    if (!m_pBuffer || m_DataAvailable == 0) {
+    if (!m_pBuffer) {
+        RtlZeroMemory(pDestination, byteCount);
+        KeReleaseSpinLock(&m_Lock, oldIrql);
+        return byteCount;
+    }
+
+    // Pre-roll: selagi cushion belum terisi, keluarkan senyap dan JANGAN konsumsi
+    // data. Ini bukan underrun — ini fase pengisian awal yang disengaja, supaya
+    // capture punya jarak aman terhadap jitter scheduling.
+    // Cushion dibatasi separuh kapasitas ring: kalau user menyetel buffer sangat
+    // kecil, preroll tidak boleh melebihi isi ring (kalau tidak, capture akan
+    // menunggu selamanya dan yang keluar hanya senyap).
+    ULONG preroll = m_PrerollBytes;
+    if (preroll > m_BufferSize / 2) preroll = m_BufferSize / 2;
+    if (preroll > 0 && m_DataAvailable < preroll) {
+        RtlZeroMemory(pDestination, byteCount);
+        KeReleaseSpinLock(&m_Lock, oldIrql);
+        return byteCount;
+    }
+
+    if (m_DataAvailable == 0) {
         // Underflow handling: isi dengan digital silence (0x00)
         RtlZeroMemory(pDestination, byteCount);
         m_UnderrunCount++;
@@ -161,7 +182,11 @@ ULONG CCircularRingBuffer::Read(PUCHAR pDestination, ULONG byteCount) {
     // latensi kembali terkendali. Tanpa ini, capture yang baru mulai beberapa detik
     // setelah render akan memutar audio basi dengan latensi sebesar isi buffer.
     if (m_LatencyLimitBytes > 0 && m_DataAvailable > m_LatencyLimitBytes) {
-        ULONG drop = m_DataAvailable - m_LatencyLimitBytes;
+        // Buang sampai kembali ke target cushion (bukan ke batas atas), supaya
+        // setelah koreksi latensi kembali normal dan tidak menetap di batas.
+        ULONG target = (m_PrerollBytes > 0 && m_PrerollBytes < m_LatencyLimitBytes)
+                       ? m_PrerollBytes : m_LatencyLimitBytes;
+        ULONG drop = m_DataAvailable - target;
         drop = (drop / m_AlignBytes) * m_AlignBytes;   // jaga batas frame PCM
         if (drop > 0) {
             m_ReadOffset = (m_ReadOffset + drop) % m_BufferSize;

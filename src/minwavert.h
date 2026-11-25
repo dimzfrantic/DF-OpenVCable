@@ -38,6 +38,10 @@ private:
     LARGE_INTEGER           m_Frequency;
     ULONGLONG               m_LinearPosition;
 
+    // Parameter format aktual (dipakai untuk preroll & deteksi backlog basi)
+    ULONG                   m_BytesPerSec;
+    ULONG                   m_BlockAlign;
+
 public:
     DECLARE_STD_UNKNOWN();
 
@@ -75,6 +79,11 @@ private:
     BOOLEAN*                m_pbEnabled;
     PPORTWAVERT             m_pPort;
 
+    // Jumlah stream capture yang sedang berjalan pada kabel ini. Sisi render
+    // memakai ini supaya tidak menumpuk audio ke ring saat tidak ada konsumen
+    // (kalau tetap menulis, ring penuh dan counter overrun naik tanpa arti).
+    volatile LONG           m_CaptureStreamCount;
+
 public:
     DECLARE_STD_UNKNOWN();
 
@@ -108,4 +117,8 @@ public:
     CCircularRingBuffer*    GetSharedBuffer() const { return m_pSharedBuffer; }
     ULONG                   GetCableIndex() const { return m_CableIndex; }
     BOOLEAN                 IsCableEnabled() const { return m_pbEnabled ? *m_pbEnabled : TRUE; }
+
+    VOID                    CaptureStreamStarted() { InterlockedIncrement(&m_CaptureStreamCount); }
+    VOID                    CaptureStreamStopped() { InterlockedDecrement(&m_CaptureStreamCount); }
+    BOOLEAN                 IsCaptureActive() const { return m_CaptureStreamCount > 0; }
 };

@@ -27,7 +27,8 @@ CMiniportWaveRT::CMiniportWaveRT(PUNKNOWN pUnknownOuter) :
     m_CableIndex(0),
     m_pSharedBuffer(NULL),
     m_pbEnabled(NULL),
-    m_pPort(NULL)
+    m_pPort(NULL),
+    m_CaptureStreamCount(0)
 {
     PAGED_CODE();
 }
@@ -307,13 +308,20 @@ CMiniportWaveRTStream::CMiniportWaveRTStream(PUNKNOWN pUnknownOuter) :
     m_pDmaMdl(NULL),
     m_pDmaBuffer(NULL),
     m_DmaBufferSize(0),
-    m_LinearPosition(0)
+    m_LinearPosition(0),
+    m_BytesPerSec(0),
+    m_BlockAlign(6)
 {
     m_StartTime.QuadPart = 0;
     KeQueryPerformanceCounter(&m_Frequency);
 }
 
 CMiniportWaveRTStream::~CMiniportWaveRTStream() {
+    // Lepas hitungan capture kalau stream dihancurkan tanpa SetState(STOP).
+    if (m_bCapture && m_pMiniport && m_State == KSSTATE_RUN) {
+        m_pMiniport->CaptureStreamStopped();
+        m_State = KSSTATE_STOP;
+    }
     if (m_pDmaBuffer && m_pDmaMdl) {
         MmUnlockPages(m_pDmaMdl);
         IoFreeMdl(m_pDmaMdl);
@@ -355,35 +363,56 @@ NTSTATUS CMiniportWaveRTStream::Init(
     if (pRing) {
         pRing->SetAlignment(blockAlign);
         if (m_bCapture) {
-            pRing->SetLatencyLimit(bytesPerSec / 10);   // backlog maksimum 100 ms
+            // Cushion 50 ms: jarak aman terhadap jitter polling WASAPI (~10 ms).
+            // Batas atas 150 ms: kalau backlog melewatinya, buang sampai cushion.
+            pRing->SetPreroll((bytesPerSec * 50) / 1000);
+            pRing->SetLatencyLimit((bytesPerSec * 150) / 1000);
         }
     }
+
+    m_BytesPerSec = bytesPerSec;
+    m_BlockAlign = blockAlign;
 
     return STATUS_SUCCESS;
 }
 
 STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::SetState(KSSTATE State) {
-    if (m_State != State) {
-        m_State = State;
-        if (State == KSSTATE_RUN) {
-            KeQueryPerformanceCounter(&m_StartTime);
-            m_LinearPosition = 0;
+    if (m_State == State) return STATUS_SUCCESS;
 
-            // Sisi capture selalu mulai dari ring yang bersih. Tanpa ini, kalau
-            // render sudah jalan beberapa detik sebelum aplikasi recorder dibuka,
-            // capture langsung memutar backlog audio basi (latensi besar) dan
-            // ring cepat overflow.
-            if (m_bCapture) {
-                CCircularRingBuffer* pRing = m_pMiniport ? m_pMiniport->GetSharedBuffer() : NULL;
-                if (pRing) pRing->Reset();
-            }
-        } else if (State == KSSTATE_STOP) {
-            m_LinearPosition = 0;
-            if (m_pDmaBuffer && m_DmaBufferSize > 0) {
-                RtlZeroMemory(m_pDmaBuffer, m_DmaBufferSize);
-            }
+    KSSTATE oldState = m_State;
+    m_State = State;
+
+    // Lacak jumlah stream capture yang benar-benar berjalan. Sisi render memakai
+    // angka ini supaya tidak menulis ke ring saat tidak ada konsumen.
+    if (m_bCapture && m_pMiniport) {
+        if (oldState != KSSTATE_RUN && State == KSSTATE_RUN) {
+            m_pMiniport->CaptureStreamStarted();
+        } else if (oldState == KSSTATE_RUN && State != KSSTATE_RUN) {
+            m_pMiniport->CaptureStreamStopped();
         }
     }
+
+    if (State == KSSTATE_RUN) {
+        KeQueryPerformanceCounter(&m_StartTime);
+        m_LinearPosition = 0;
+
+        if (m_bCapture && m_pMiniport) {
+            CCircularRingBuffer* pRing = m_pMiniport->GetSharedBuffer();
+            // Buang backlog BASI saja (mis. render sudah jalan lama sebelum recorder
+            // dibuka). Ambang 500 ms dipakai supaya siklus STOP/RUN normal tidak
+            // memotong audio yang sedang berjalan.
+            if (pRing && m_BytesPerSec > 0 &&
+                pRing->GetDataAvailable() > (m_BytesPerSec / 2)) {
+                pRing->Reset();
+            }
+        }
+    } else if (State == KSSTATE_STOP) {
+        m_LinearPosition = 0;
+        if (m_pDmaBuffer && m_DmaBufferSize > 0) {
+            RtlZeroMemory(m_pDmaBuffer, m_DmaBufferSize);
+        }
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -456,10 +485,15 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPosition(KSAUDIO_POSITION* pPo
 
             // Tangani pembagian chunk jika posisi melewati batas circular buffer DMA
             BOOLEAN bCableActive = m_pMiniport ? m_pMiniport->IsCableEnabled() : TRUE;
+            // Render hanya mengisi ring kalau ada stream capture yang benar-benar
+            // berjalan. Tanpa cek ini, ring terisi audio basi saat tidak ada yang
+            // merekam dan counter overrun naik tanpa arti.
+            BOOLEAN bHasConsumer = m_pMiniport ? m_pMiniport->IsCaptureActive() : TRUE;
+            BOOLEAN bWriteToRing = bCableActive && bHasConsumer;
 
             if (prevPos + toTransfer <= m_DmaBufferSize) {
                 if (!m_bCapture) {
-                    if (bCableActive) {
+                    if (bWriteToRing) {
                         pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, toTransfer);
                     }
                 } else {
@@ -474,7 +508,7 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPosition(KSAUDIO_POSITION* pPo
                 firstChunk = (firstChunk / blockAlign) * blockAlign;
                 ULONG secondChunk = toTransfer - firstChunk;
                 if (!m_bCapture) {
-                    if (bCableActive) {
+                    if (bWriteToRing) {
                         pRing->Write((PUCHAR)m_pDmaBuffer + prevPos, firstChunk);
                         pRing->Write((PUCHAR)m_pDmaBuffer, secondChunk);
                     }

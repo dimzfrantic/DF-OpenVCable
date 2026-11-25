@@ -1,5 +1,20 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.0.10] - 2026-11-25
+
+### Fixed
+- **Audio patah-patah walau rate sudah sinkron** (`src/ringbuffer.cpp`, `src/minwavert.cpp`). Setelah 1.0.0.9 kedua endpoint sama-sama 48 kHz/24-bit (288.000 B/s) sehingga drift hilang, tetapi hasil uji masih tidak mulus dengan **underrun 10.427 vs overrun 952**. Penyebabnya bukan drift, tapi **tidak ada cushion sama sekali**: render menulis dan capture membaca dari QPC yang sama pada rate yang sama, jadi `DataAvailable` bertahan di sekitar nol. Setiap jitter scheduling (polling WASAPI ~10 ms) langsung membuat capture kehabisan data → `Read()` mengisi senyap → celah berulang.
+
+  Perbaikan:
+  - **Pre-roll cushion 50 ms** (`SetPreroll`): capture tidak mulai mengonsumsi sebelum ring terisi 50 ms. Setelah itu jarak (offset) terjaga konstan karena kedua sisi memakai clock yang sama, jadi latensi stabil di ~50 ms dan tidak ada underrun. Fase pengisian awal tidak dihitung sebagai underrun.
+  - Cushion dibatasi separuh kapasitas ring, supaya buffer kecil tidak membuat capture menunggu selamanya.
+  - Batas latensi dinaikkan ke 150 ms dan koreksinya membuang **sampai cushion** (bukan sampai batas atas), sehingga latensi kembali normal setelah gangguan, tidak menetap di batas.
+  - **Render berhenti menulis saat tidak ada stream capture yang berjalan** (`IsCaptureActive`): mencegah ring terisi audio basi dan membuat counter overrun naik tanpa arti.
+  - `Reset()` backlog saat capture `RUN` kini hanya dilakukan kalau backlog > 500 ms (data basi), bukan setiap transisi state — supaya siklus STOP/RUN normal tidak memotong audio.
+
+### Changed
+- **DriverVer**: `1.0.0.9` → `1.0.0.10`.
+
 ## [1.0.0.9] - 2026-11-25
 
 ### Fixed

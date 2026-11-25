@@ -23,6 +23,11 @@ private:
     ULONG           m_LatencyLimitBytes;
     ULONG           m_AlignBytes;      // nBlockAlign, untuk menjaga frame alignment saat trim
 
+    // Pre-roll cushion: capture tidak mulai mengonsumsi sebelum ring terisi
+    // sebanyak ini. Tanpa cushion, DataAvailable bergoyang di sekitar nol dan
+    // setiap jitter scheduling langsung menjadi underrun (celah senyap).
+    ULONG           m_PrerollBytes;
+
 public:
     CCircularRingBuffer();
     ~CCircularRingBuffer();
@@ -34,7 +39,9 @@ public:
 
     VOID     SetAlignment(ULONG blockAlign)   { m_AlignBytes = blockAlign ? blockAlign : 1; }
     VOID     SetLatencyLimit(ULONG maxBytes)  { m_LatencyLimitBytes = maxBytes; }
+    VOID     SetPreroll(ULONG bytes)          { m_PrerollBytes = bytes; }
     ULONG    GetLatencyLimit() const          { return m_LatencyLimitBytes; }
+    ULONG    GetPreroll() const               { return m_PrerollBytes; }
 
     // Dipanggil oleh stream Render (Playback) untuk mengisi buffer audio
     ULONG    Write(PUCHAR pSource, ULONG byteCount);
