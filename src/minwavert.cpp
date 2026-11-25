@@ -346,6 +346,8 @@ CMiniportWaveRTStream::CMiniportWaveRTStream(PUNKNOWN pUnknownOuter) :
     m_pConvertB(NULL)
 {
     m_StartTime.QuadPart = 0;
+    // Di sini pemakaian pointer MEMANG benar: parameter menerima frekuensi
+    // (bukan waktu sekarang). Lihat catatan di SetState(KSSTATE_RUN).
     KeQueryPerformanceCounter(&m_Frequency);
 }
 
@@ -454,7 +456,14 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::SetState(KSSTATE State) {
     }
 
     if (State == KSSTATE_RUN) {
-        KeQueryPerformanceCounter(&m_StartTime);
+        // PENTING: KeQueryPerformanceCounter(&x) menulis FREKUENSI ke x, bukan waktu
+        // sekarang. Nilai waktunya adalah return value. Dulu baris ini berbentuk
+        // KeQueryPerformanceCounter(&m_StartTime), sehingga m_StartTime berisi
+        // frekuensi (~10.000.000) dan elapsed = now - 1e7 menjadi sebesar uptime
+        // sistem. Akibatnya totalBytesStreamed meledak, delta selalu lebih besar dari
+        // DMA buffer, dan setiap GetPosition menulis satu buffer penuh -> ring
+        // kebanjiran lalu dipotong ~50x/detik (terdengar sebagai dengung).
+        m_StartTime = KeQueryPerformanceCounter(NULL);
         m_LinearPosition = 0;
 
         if (m_bCapture && m_pMiniport) {
@@ -493,6 +502,15 @@ STDMETHODIMP_(NTSTATUS) CMiniportWaveRTStream::GetPosition(KSAUDIO_POSITION* pPo
 
     LARGE_INTEGER now, elapsed;
     now = KeQueryPerformanceCounter(NULL);
+
+    // Jaring pengaman: kalau m_StartTime belum diisi (GetPosition mendahului
+    // SetState(RUN)) atau nilainya di masa depan, mulai hitung dari sekarang.
+    // Tanpa ini elapsed bisa sebesar uptime sistem dan delta byte meledak.
+    if (m_StartTime.QuadPart == 0 || now.QuadPart < m_StartTime.QuadPart) {
+        m_StartTime = now;
+        m_LinearPosition = 0;
+    }
+
     elapsed.QuadPart = now.QuadPart - m_StartTime.QuadPart;
 
     // Hitung bytes per detik dan block align secara akurat berdasar format stream aktual

@@ -146,7 +146,9 @@ ULONG CCircularRingBuffer::Write(PUCHAR pSource, ULONG byteCount) {
     m_WriteOffset = (m_WriteOffset + byteCount) % m_BufferSize;
     m_DataAvailable += byteCount;
 
-    KeQueryPerformanceCounter(&m_LastWriteTime);
+    // KeQueryPerformanceCounter(&x) mengisi x dengan FREKUENSI, bukan waktu sekarang.
+    // Waktu sekarang adalah return value fungsi ini.
+    m_LastWriteTime = KeQueryPerformanceCounter(NULL);
     KeReleaseSpinLock(&m_Lock, oldIrql);
     return byteCount;
 }

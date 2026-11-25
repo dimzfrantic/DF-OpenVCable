@@ -1,5 +1,37 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.0.14] - 2026-11-25
+
+### Fixed
+- **Bug inti: `m_StartTime` diisi frekuensi, bukan waktu sekarang** (`src/minwavert.cpp`).
+
+  `KeQueryPerformanceCounter(PLARGE_INTEGER)` menulis **frekuensi** ke pointer yang diberikan; nilai **waktu sekarang** adalah *return value*-nya. Kode memanggil:
+
+  ```cpp
+  KeQueryPerformanceCounter(&m_StartTime);   // m_StartTime = 10.000.000 (frekuensi)
+  ```
+
+  sehingga `elapsed = now - m_StartTime = now - 10.000.000` ≈ sebesar **uptime sistem**. `totalBytesStreamed` meledak, `delta` selalu lebih besar dari DMA buffer, dan setiap panggilan `GetPosition` menulis satu DMA buffer penuh ke ring — terus-menerus, ~48×/detik.
+
+  Bukti terukur di mesin (kabel A, 3 detik):
+
+  | Metrik | Nilai | Arti |
+  |---|---|---|
+  | format | R `6/288000`, C `6/288000` | normalisasi container sudah benar |
+  | `fullB` | **0** | ring tidak pernah penuh |
+  | `fill` | stabil 36.102 (Δ+6) | tidak ada drift |
+  | `trim#` | **+143** | 48 pemotongan/detik |
+  | `trimB` | **+6.615.894** | 2,2 MB/detik dibuang, padahal ring hanya menerima 288 kB/detik |
+
+  Mustahil kecuali sisi render menulis ~8× real time. Setelah diperbaiki, laju tulis = laju baca = 288.000 B/s sehingga trim tidak perlu jalan sama sekali.
+
+  Perbaikan: `m_StartTime = KeQueryPerformanceCounter(NULL);` — plus jaring pengaman di `GetPosition` (kalau `m_StartTime` masih 0 atau di masa depan, mulai hitung dari sekarang) supaya `elapsed` tidak pernah sebesar uptime.
+
+- `src/ringbuffer.cpp`: `m_LastWriteTime` mengalami bug yang sama; sekarang memakai return value.
+
+### Changed
+- **DriverVer**: `1.0.0.13` → `1.0.0.14`.
+
 ## [1.0.0.13] - 2026-11-25
 
 ### Fixed
