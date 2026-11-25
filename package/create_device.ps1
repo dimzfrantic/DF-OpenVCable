@@ -460,32 +460,40 @@ if ($Remove) {
 
     $bUnloaded = $true
     if ($Cleanup -and $existing -gt 0) {
-        Write-Host "[MCVAD] Cleanup: menghapus $existing devnode duplikat..." -ForegroundColor Yellow
+        Write-Host "[MCVAD] Cleanup: memeriksa $existing devnode DF-OpenVCable..." -ForegroundColor Yellow
         $bUnloaded = Stop-McvadDriver
-        $null = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
 
-        # Bersihkan sisa instance via pnputil sebelum devnode dibuat ulang.
-        $leftover = @(Get-PnpDevice -ErrorAction SilentlyContinue |
-                      Where-Object { $_.InstanceId -like 'ROOT\MCVAD*' -or ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*') })
-        foreach ($d in $leftover) {
-            Write-Host ("[MCVAD] pnputil /remove-device " + $d.InstanceId) -ForegroundColor Gray
-            & pnputil /remove-device $d.InstanceId 2>&1 | Out-Null
+        if (-not $bUnloaded) {
+            # PENTING: kalau driver belum terlepas, JANGAN hapus devnode.
+            # Menghapus lalu gagal membuat ulang akan membuat perangkat audio
+            # HILANG sama sekali dari Windows (kejadian di 1.0.0.12).
+            Write-Host "[MCVAD] Cleanup DIBATALKAN: driver masih termuat." -ForegroundColor Yellow
+            Write-Host "        Devnode dibiarkan apa adanya supaya perangkat tidak hilang." -ForegroundColor Yellow
+            Write-Host "        Restart Windows, lalu jalankan skrip ini sekali lagi." -ForegroundColor Yellow
+        } else {
+            Write-Host "[MCVAD] Menghapus $existing devnode..." -ForegroundColor Yellow
+            $null = [DeviceInstaller]::RemoveRootDevice($MediaClassGuid, $HardwareId)
+
+            # Bersihkan sisa instance via pnputil sebelum devnode dibuat ulang.
+            $leftover = @(Get-PnpDevice -ErrorAction SilentlyContinue |
+                          Where-Object { $_.InstanceId -like 'ROOT\MCVAD*' -or ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*') })
+            foreach ($d in $leftover) {
+                Write-Host ("[MCVAD] pnputil /remove-device " + $d.InstanceId) -ForegroundColor Gray
+                & pnputil /remove-device $d.InstanceId 2>&1 | Out-Null
+            }
+
+            Start-Sleep -Milliseconds 800
+            $existing = 0
+
+            # Cache endpoint lama dibersihkan SETELAH devnode hilang. Kalau dibersihkan
+            # lebih dulu, AudioEndpointBuilder akan membuat ulang entry dari devnode
+            # yang masih hidup dan jumlahnya kembali duplikat.
+            Clear-AudioEndpointCache
         }
-
-        Start-Sleep -Milliseconds 800
-        $existing = 0
-
-        # Cache endpoint lama dibersihkan SETELAH devnode hilang. Kalau dibersihkan
-        # lebih dulu, AudioEndpointBuilder akan membuat ulang entry dari devnode
-        # yang masih hidup dan jumlahnya kembali duplikat.
-        Clear-AudioEndpointCache
     }
 
     if (-not $bUnloaded) {
-        Write-Host "[MCVAD] Devnode TIDAK dibuat ulang: image driver lama masih termuat." -ForegroundColor Yellow
-        Write-Host "        Kalau dipaksa, devnode baru akan memakai binary lama dan hasilnya" -ForegroundColor Yellow
-        Write-Host "        menyesatkan (versi terlihat baru, perilaku masih lama)." -ForegroundColor Yellow
-        Write-Host "        Restart Windows, lalu jalankan skrip ini sekali lagi." -ForegroundColor Yellow
+        Write-Host "[MCVAD] Devnode tidak disentuh (lihat pesan Cleanup di atas)." -ForegroundColor Yellow
     } elseif ($existing -eq 0) {
         Write-Host "[MCVAD] Mendaftarkan root device node: $HardwareId..." -ForegroundColor Cyan
         $errDetail = [string]::Empty
