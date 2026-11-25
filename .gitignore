@@ -6,21 +6,13 @@
 # dihasilkan oleh .github/workflows/build.yml.
 
 # ---- Paket rilis lokal (AIR/) ----
-# Binary & arsip hasil unduhan/ekstraksi dari Releases
-AIR/*.sys
-AIR/*.cat
-AIR/*.cer
-AIR/*.exe
-AIR/*.zip
-AIR/latest.zip
-AIR/_STALE_*
+# AIR/ adalah folder EKSTRAKSI artefak rilis (hasil unduhan dari Releases),
+# bukan sumber. Seluruh isinya diabaikan supaya tidak ada dua sumber kebenaran:
+# sumber sebenarnya ada di package/, control_panel/, tests/, dan docs/.
+AIR/
 
 # Arsip rilis yang terunduh ke root repo
 /DF-OpenVCable-v*.zip
-
-# Sisa ekstraksi folder paket (mis. AIR/DF-OpenVCable-v1.0.0-x64/)
-AIR/*_package_*
-AIR/DF-OpenVCable-*
 
 # ---- Output build WDK (package/) ----
 package/*.sys
