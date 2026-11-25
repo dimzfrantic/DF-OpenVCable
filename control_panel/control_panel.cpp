@@ -11,6 +11,8 @@
 #define ID_BTN_RESET     1003
 #define ID_CHK_ENABLE    1004
 #define ID_TAB_CONTROL   1005
+#define ID_COMBO_RATE    1006
+#define ID_COMBO_BUFFER  1007
 
 HWND g_hTab = NULL;
 HWND g_hStatus = NULL;
@@ -31,8 +33,22 @@ int g_CurrentCable = 0;
 // langsung berubah kembali karena UpdateCableUI menulis ulang dari driver).
 bool g_bEnableDirty = false;
 
+// Selama TRUE, combobox Sample Rate / Buffer Duration tidak ditimpa status driver.
+// Tanpa ini, timer 500 ms akan mengembalikan pilihan user ke nilai driver sebelum
+// sempat di-Apply.
+bool g_bConfigDirty = false;
+
 const ULONG g_SampleRates[] = { 44100, 48000, 96000, 192000 };
 const ULONG g_BufferSizes[] = { 50, 100, 250, 500, 1000 };
+
+// Cari index sebuah nilai di array pilihan combobox (-1 kalau tidak ada, mis. nilai
+// yang tersimpan di driver tidak termasuk pilihan yang ditawarkan GUI).
+int IndexOfValue(const ULONG* pArr, int count, ULONG value) {
+    for (int i = 0; i < count; i++) {
+        if (pArr[i] == value) return i;
+    }
+    return -1;
+}
 
 void UpdateCableUI(HWND hWnd) {
     if (g_hDevice == INVALID_HANDLE_VALUE) return;
@@ -49,6 +65,17 @@ void UpdateCableUI(HWND hWnd) {
         }
         BOOL bCheckedNow = (SendMessage(g_hChkEnable, BM_GETCHECK, 0, 0) == BST_CHECKED);
         SetWindowText(g_hChkEnable, bCheckedNow ? L"Cable Enabled (Active)" : L"Cable Disabled (Muted)");
+
+        // Sinkronkan combobox dengan state driver. Ini yang membuat panel menampilkan
+        // nilai yang benar-benar tersimpan di driver saat dibuka/dipindah kabel,
+        // bukan default hardcoded di WM_CREATE. Dilewati kalau user sedang mengubah
+        // dan belum Apply.
+        if (!g_bConfigDirty) {
+            int rateIdx = IndexOfValue(g_SampleRates, 4, pCable->SampleRate);
+            if (rateIdx >= 0) SendMessage(g_hComboRate, CB_SETCURSEL, rateIdx, 0);
+            int bufIdx = IndexOfValue(g_BufferSizes, 5, pCable->BufferDurationMs);
+            if (bufIdx >= 0) SendMessage(g_hComboBuffer, CB_SETCURSEL, bufIdx, 0);
+        }
 
         // Update Status
         WCHAR szStatus[128];
@@ -93,6 +120,7 @@ void ApplySettings(HWND hWnd) {
     DWORD bytesRet = 0;
     if (DeviceIoControl(g_hDevice, IOCTL_MCVAD_SET_CABLE_CONFIG, &req, sizeof(req), NULL, 0, &bytesRet, NULL)) {
         g_bEnableDirty = false;   // pilihan user sudah dikirim ke driver
+        g_bConfigDirty = false;
         UpdateCableUI(hWnd);
         MessageBox(hWnd, L"Settings applied successfully.", L"Success", MB_OK | MB_ICONINFORMATION);
     } else {
@@ -151,7 +179,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SendMessage(hLblRate, WM_SETFONT, (WPARAM)hFont, TRUE);
 
         g_hComboRate = CreateWindow(L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
-            120, 102, 110, 120, hWnd, NULL, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
+            120, 102, 110, 120, hWnd, (HMENU)ID_COMBO_RATE, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         SendMessage(g_hComboRate, WM_SETFONT, (WPARAM)hFont, TRUE);
         SendMessage(g_hComboRate, CB_ADDSTRING, 0, (LPARAM)L"44100 Hz");
         SendMessage(g_hComboRate, CB_ADDSTRING, 0, (LPARAM)L"48000 Hz");
@@ -165,7 +193,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SendMessage(hLblBuffer, WM_SETFONT, (WPARAM)hFont, TRUE);
 
         g_hComboBuffer = CreateWindow(L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
-            350, 102, 105, 120, hWnd, NULL, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
+            350, 102, 105, 120, hWnd, (HMENU)ID_COMBO_BUFFER, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         SendMessage(g_hComboBuffer, WM_SETFONT, (WPARAM)hFont, TRUE);
         SendMessage(g_hComboBuffer, CB_ADDSTRING, 0, (LPARAM)L"50 ms");
         SendMessage(g_hComboBuffer, CB_ADDSTRING, 0, (LPARAM)L"100 ms");
@@ -225,6 +253,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (lpnmhdr->idFrom == ID_TAB_CONTROL && lpnmhdr->code == TCN_SELCHANGE) {
             g_CurrentCable = TabCtrl_GetCurSel(g_hTab);
             g_bEnableDirty = false;   // pindah kabel: checkbox kembali mengikuti driver
+            g_bConfigDirty = false;   // combobox juga kembali mengikuti driver
             UpdateCableUI(hWnd);
         }
         break;
@@ -243,6 +272,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 g_bEnableDirty = true;
                 BOOL bChecked = (SendMessage(g_hChkEnable, BM_GETCHECK, 0, 0) == BST_CHECKED);
                 SetWindowText(g_hChkEnable, bChecked ? L"Cable Enabled (Active)" : L"Cable Disabled (Muted)");
+            }
+            break;
+        case ID_COMBO_RATE:
+        case ID_COMBO_BUFFER:
+            if (HIWORD(wParam) == CBN_SELCHANGE) {
+                // Pilihan user belum dikirim ke driver: hentikan sinkronisasi timer
+                // sampai Apply ditekan (atau tab dipindah).
+                g_bConfigDirty = true;
             }
             break;
         }

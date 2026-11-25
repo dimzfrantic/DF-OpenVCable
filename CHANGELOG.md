@@ -1,5 +1,22 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.0.11] - 2026-11-25
+
+### Fixed
+- **Control Panel: nilai kembali ke default saat panel dibuka ulang** (`control_panel/control_panel.cpp`). Kedua combobox dibuat tanpa control ID (`NULL`), sehingga tidak ada notifikasi `CBN_SELCHANGE` yang bisa ditangkap, dan `UpdateCableUI()` memang tidak pernah menyetel `CB_SETCURSEL`. Akibatnya panel selalu menampilkan default hardcoded di `WM_CREATE` (48000 Hz / 500 ms) berapa pun nilai yang tersimpan di driver — ubah ke 200 ms, Apply, tutup, buka lagi → tampil 500 ms.
+  - Combobox sekarang punya ID (`ID_COMBO_RATE` / `ID_COMBO_BUFFER`) dan menangani `CBN_SELCHANGE`.
+  - `UpdateCableUI()` menyinkronkan kedua combobox dari status driver (dipetakan nilai → index lewat `IndexOfValue`), jadi panel selalu menampilkan nilai sebenarnya saat dibuka atau saat pindah tab.
+  - Flag `g_bConfigDirty` mencegah timer 500 ms menimpa pilihan user yang belum di-Apply (pola yang sama dengan `g_bEnableDirty`), dan direset saat Apply berhasil atau tab dipindah.
+
+- **Setting hilang setiap driver reload / reboot** (`src/adapter.cpp`, `src/driver.h`). `g_ConfiguredBufferMs` hanya variabel statis di memori, dan ukuran ring di `StartDevice` memakai konstanta 2 detik — jadi nilai yang tampil di GUI tidak pernah bertahan.
+  - Setting (buffer duration + enable state per kabel) sekarang dipersist ke `HKLM\SOFTWARE\DF-OpenVCable\Settings` sebagai satu nilai `REG_BINARY` (magic `'MCV1'`, 5×BufferMs + 5×Enabled) lewat `RtlWriteRegistryValue`.
+  - `StartDevice` memanggil `McvadLoadSettings()` sebelum membuat ring buffer, lalu mengalokasikan ring sesuai durasi tersimpan — sehingga kapasitas sebenarnya konsisten dengan yang ditampilkan panel.
+  - Nilai dari registry disanitasi (10–5000 ms); kalau magic tidak cocok atau rusak, kembali ke default 500 ms.
+
+### Changed
+- **DriverVer**: `1.0.0.10` → `1.0.0.11`.
+- Ring buffer default kini 500 ms (bukan 2 detik tetap) mengikuti `DEFAULT_BUFFER_MS`.
+
 ## [1.0.0.10] - 2026-11-25
 
 ### Fixed

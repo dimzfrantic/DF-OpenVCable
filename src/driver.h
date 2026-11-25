@@ -34,7 +34,7 @@ enum CABLE_INDEX {
 #define DEFAULT_CHANNELS            2
 #define DEFAULT_BITS_PER_SAMPLE     24
 #define DEFAULT_CONTAINER_SIZE      24   // 24-bit = 3 byte/sample -> nBlockAlign 6
-#define BUFFER_DURATION_SECONDS     2   // Ukuran buffer memori loopback: 2 detik PCM
+#define DEFAULT_BUFFER_MS           500  // durasi ring buffer default (dipakai juga saat restore gagal)
 
 // Forward declarations
 class CCircularRingBuffer;

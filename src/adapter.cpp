@@ -41,7 +41,86 @@ const PCWSTR g_CableTopoSubdeviceNames[MAX_CABLES] = {
 static CABLE_CONTEXT g_Cables[MAX_CABLES];
 static PDEVICE_OBJECT g_pControlDeviceObject = NULL;
 static ULONG g_ConfiguredSampleRate[MAX_CABLES] = { 48000, 48000, 48000, 48000, 48000 };
-static ULONG g_ConfiguredBufferMs[MAX_CABLES] = { 500, 500, 500, 500, 500 };
+static ULONG g_ConfiguredBufferMs[MAX_CABLES] = { DEFAULT_BUFFER_MS, DEFAULT_BUFFER_MS, DEFAULT_BUFFER_MS, DEFAULT_BUFFER_MS, DEFAULT_BUFFER_MS };
+
+//=====================================================================
+// Persistensi setting kabel
+//=====================================================================
+// Tanpa ini, semua pengaturan hanya hidup di memori driver: setiap reload
+// (termasuk reboot) kembali ke default. Disimpan sebagai satu nilai REG_BINARY
+// supaya cukup satu query + satu write.
+#define MCVAD_REG_PATH          L"\\Registry\\Machine\\SOFTWARE\\DF-OpenVCable"
+#define MCVAD_REG_VALUE         L"Settings"
+#define MCVAD_PERSIST_MAGIC     0x4D435631  // 'MCV1'
+
+typedef struct _MCVAD_PERSIST {
+    ULONG   Magic;
+    ULONG   BufferMs[MAX_CABLES];
+    ULONG   Enabled[MAX_CABLES];
+} MCVAD_PERSIST, *PMCVAD_PERSIST;
+
+static MCVAD_PERSIST g_Persist;
+
+static NTSTATUS McvadPersistQueryRoutine(
+    PWSTR  ValueName,
+    ULONG  ValueType,
+    PVOID  ValueData,
+    ULONG  ValueLength,
+    PVOID  Context,
+    PVOID  EntryContext
+) {
+    UNREFERENCED_PARAMETER(ValueName);
+    UNREFERENCED_PARAMETER(EntryContext);
+
+    if (Context && ValueData && ValueType == REG_BINARY && ValueLength == sizeof(MCVAD_PERSIST)) {
+        RtlCopyMemory(Context, ValueData, sizeof(MCVAD_PERSIST));
+    }
+    return STATUS_SUCCESS;
+}
+
+static VOID McvadLoadSettings() {
+    RTL_QUERY_REGISTRY_TABLE table[2];
+    RtlZeroMemory(table, sizeof(table));
+
+    table[0].QueryRoutine  = McvadPersistQueryRoutine;
+    table[0].Flags         = 0;
+    table[0].Name          = MCVAD_REG_VALUE;
+    table[0].EntryContext  = NULL;
+    table[0].DefaultType   = REG_NONE;
+    table[0].DefaultData   = NULL;
+    table[0].DefaultLength = 0;
+
+    RtlZeroMemory(&g_Persist, sizeof(g_Persist));
+    RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE, MCVAD_REG_PATH, table, &g_Persist, NULL);
+
+    if (g_Persist.Magic != MCVAD_PERSIST_MAGIC) {
+        RtlZeroMemory(&g_Persist, sizeof(g_Persist));
+        g_Persist.Magic = MCVAD_PERSIST_MAGIC;
+        for (ULONG i = 0; i < MAX_CABLES; i++) {
+            g_Persist.BufferMs[i] = DEFAULT_BUFFER_MS;
+            g_Persist.Enabled[i] = TRUE;
+        }
+        return;
+    }
+
+    // Sanitasi: nilai di registry bisa saja rusak atau dari versi lain.
+    for (ULONG i = 0; i < MAX_CABLES; i++) {
+        if (g_Persist.BufferMs[i] < 10 || g_Persist.BufferMs[i] > 5000) {
+            g_Persist.BufferMs[i] = DEFAULT_BUFFER_MS;
+        }
+        g_Persist.Enabled[i] = g_Persist.Enabled[i] ? TRUE : FALSE;
+    }
+}
+
+static VOID McvadSaveSettings() {
+    g_Persist.Magic = MCVAD_PERSIST_MAGIC;
+    NTSTATUS status = RtlWriteRegistryValue(
+        RTL_REGISTRY_ABSOLUTE, MCVAD_REG_PATH, MCVAD_REG_VALUE,
+        REG_BINARY, &g_Persist, sizeof(g_Persist));
+    if (!NT_SUCCESS(status)) {
+        KdPrint(("[MCVAD] Gagal menyimpan setting ke registry: 0x%08X\n", status));
+    }
+}
 
 // ============================================================
 // Diagnostik StartDevice
@@ -291,6 +370,11 @@ NTSTATUS McvadDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
                             g_Cables[idx].pSharedBuffer->Resize(newSizeBytes);
                         }
                     }
+                    // Persist ke registry: pengaturan harus bertahan setelah driver
+                    // reload maupun reboot.
+                    g_Persist.Enabled[idx]  = g_Cables[idx].bEnabled ? TRUE : FALSE;
+                    g_Persist.BufferMs[idx] = g_ConfiguredBufferMs[idx];
+                    McvadSaveSettings();
                     status = STATUS_SUCCESS;
                 } else {
                     status = STATUS_INVALID_PARAMETER;
@@ -343,16 +427,23 @@ NTSTATUS StartDevice(PDEVICE_OBJECT DeviceObject, PIRP Irp, PRESOURCELIST Resour
     KdPrint(("[MCVAD] StartDevice: Membangun alur loopback dan topologi untuk 5 virtual cable\n"));
     McvadDiagReset();
 
-    ULONG bufferSize = DEFAULT_SAMPLE_RATE * DEFAULT_CHANNELS * (DEFAULT_CONTAINER_SIZE / 8) * BUFFER_DURATION_SECONDS;
+    // Pulihkan setting tersimpan supaya pengaturan tidak kembali ke default setiap
+    // kali driver di-reload (termasuk setelah reboot).
+    McvadLoadSettings();
 
     for (ULONG i = 0; i < MAX_CABLES; i++) {
         g_Cables[i].CableIndex = i;
         g_Cables[i].Name = g_CableNames[i];
         g_Cables[i].SubdeviceName = g_CableSubdeviceNames[i];
         g_Cables[i].TopoSubdeviceName = g_CableTopoSubdeviceNames[i];
-        g_Cables[i].bEnabled = TRUE;
+        g_Cables[i].bEnabled = g_Persist.Enabled[i] ? TRUE : FALSE;
+        g_ConfiguredBufferMs[i] = g_Persist.BufferMs[i];
 
-        // 1. Alokasi Ring Buffer terpisah untuk tiap kabel agar tidak bercampur
+        // 1. Alokasi Ring Buffer terpisah untuk tiap kabel agar tidak bercampur.
+        // Ukuran mengikuti buffer duration tersimpan (bukan konstanta tetap), supaya
+        // nilai yang tampil di Control Panel sesuai kapasitas sebenarnya.
+        ULONG bytesPerSec = DEFAULT_SAMPLE_RATE * DEFAULT_CHANNELS * (DEFAULT_CONTAINER_SIZE / 8);
+        ULONG bufferSize = (bytesPerSec * g_ConfiguredBufferMs[i]) / 1000;
         g_Cables[i].pSharedBuffer = new (NonPagedPoolNx, MCVAD_POOL_TAG) CCircularRingBuffer();
         if (g_Cables[i].pSharedBuffer) {
             g_Cables[i].pSharedBuffer->Initialize(bufferSize);
