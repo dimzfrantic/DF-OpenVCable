@@ -369,20 +369,23 @@ namespace DFOpenVCable
                 string startMenuLnk = Path.Combine(startMenuDir, lnkName);
                 CreateShortcut(startMenuLnk, destExe, AppInstallDir, "DF-OpenVCable Control Panel");
 
-                // 2. Desktop shortcuts (Public Desktop & User Desktop)
+                // Clean up any legacy user desktop shortcut to prevent duplicates
+                string userDesktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                if (!string.IsNullOrEmpty(userDesktop))
+                {
+                    string oldUsrLnk = Path.Combine(userDesktop, lnkName);
+                    if (File.Exists(oldUsrLnk))
+                    {
+                        try { File.Delete(oldUsrLnk); } catch { }
+                    }
+                }
+
+                // 2. Desktop shortcut (Public Desktop only to avoid duplicates)
                 string commonDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
                 if (!string.IsNullOrEmpty(commonDesktop) && Directory.Exists(commonDesktop))
                 {
                     string pubLnk = Path.Combine(commonDesktop, lnkName);
                     CreateShortcut(pubLnk, destExe, AppInstallDir, "DF-OpenVCable Control Panel");
-                }
-
-                string userDesktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-                if (!string.IsNullOrEmpty(userDesktop) && Directory.Exists(userDesktop) &&
-                    !string.Equals(commonDesktop, userDesktop, StringComparison.OrdinalIgnoreCase))
-                {
-                    string usrLnk = Path.Combine(userDesktop, lnkName);
-                    CreateShortcut(usrLnk, destExe, AppInstallDir, "DF-OpenVCable Control Panel");
                 }
             }
         }
