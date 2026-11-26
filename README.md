@@ -19,40 +19,80 @@ Setiap sinyal audio yang diputar ke perangkat Playback/Render secara otomatis di
 - **WaveRT Modern Architecture**: Menggunakan interface `IMiniportWaveRT` standar Windows 10/11 untuk latensi ultra rendah dan efisiensi CPU.
 - **Zero Clock Drift Streaming**: Sinkronisasi transfer data menggunakan `KeQueryPerformanceCounter` (QPC) presisi tinggi untuk mencegah audio glitch, stutter, dan dropouts.
 - **Dynamic Buffer Resizing**: Konfigurasi ukuran buffer (50 ms hingga 2000 ms) dan sample rate (44.1 kHz hingga 192 kHz) dapat diubah langsung saat runtime via IOCTL.
-- **Control Panel GUI**: Tersedia aplikasi pengatur berbasis Python (Tkinter) dan Win32 C++ native dengan meter beban buffer dan penghitung glitch real-time.
-- **One-Click Deployment**: Installer mandiri (`install.bat`) dan uninstaller (`uninstall.bat`) tanpa dependensi utility eksternal seperti `devcon.exe`.
-- **Automated CI/CD**: Dilengkapi workflow GitHub Actions untuk build dan packaging otomatis.
+- **One-Click Setup & Installer GUI**: Dilengkapi installer modern WinForms x64 (`DF-OpenVCable_Setup.exe`) yang mendeteksi status Secure Boot, mengaktifkan Test Signing, mendaftarkan PnP node, memasang driver, menyalin Control Panel ke `Program Files`, serta membuat shortcut Start Menu dan Desktop secara otomatis.
+- **Control Panel GUI**: Tersedia aplikasi pengatur berbasis Native Win32 C++ (`control_panel.exe`) dan Python (Tkinter) dengan meter beban buffer dan penghitung glitch real-time.
+- **Watermark Remover Tool**: Utilitas pembersih watermark "Test Mode" Windows terpisah di folder `Tools/` tanpa memicu false-positive antivirus.
+- **Automated CI/CD**: Dilengkapi workflow GitHub Actions untuk build kernel driver, installer GUI, watermark patcher, dan packaging otomatis.
 
 ---
 
-## Panduan Instalasi Cepat
+## Panduan Instalasi & Penggunaan
 
 ### Unduh Paket Siap Pakai (tanpa login)
 Build CI terbaru selalu tersedia di halaman rilis:
-`https://github.com/dimzfrantic/DF-OpenVCable/releases/download/latest-build/DF-OpenVCable-v1.0.0-x64.zip`
+[`DF-OpenVCable-v1.0.0-x64.zip`](https://github.com/dimzfrantic/DF-OpenVCable/releases/download/latest-build/DF-OpenVCable-v1.0.0-x64.zip)
 
-Isi paket: `mcvad.sys`, `mcvad.inf`, `mcvad.cat` (test-signed), `MCVAD_TestCert.cer`, `install.bat`, `uninstall.bat`, `setup_cert.bat`, `create_device.ps1`, `control_panel.exe`, `mcvad_control_panel.py`.
+**Isi Paket Rilis:**
+* `DF-OpenVCable_Setup.exe` : Installer utama ber-GUI (Run as Administrator).
+* `control_panel.exe` : Aplikasi Native Control Panel untuk memantau 5 kabel audio.
+* `Driver/` : Binary kernel (`mcvad.sys`), catalog (`mcvad.cat`), INF (`mcvad.inf`), sertifikat (`MCVAD_TestCert.cer`), dan skrip PnP (`create_device.ps1`, `install.bat`, `uninstall.bat`).
+* `Tools/` : Utilitas `Remove-Watermark.exe` untuk membersihkan watermark Test Mode.
+* `tests/` & `docs/` : Skrip validasi loopback audio dan dokumentasi teknis.
 
 ### Syarat Sistem:
-- Windows 10 atau Windows 11 (64-bit / x64).
-- Hak akses Administrator.
+1. **Sistem Operasi**: Windows 10 atau Windows 11 (64-bit / x64).
+2. **Hak Akses**: Administrator.
+3. **Secure Boot**: **WAJIB DINONAKTIFKAN (Disabled)** di BIOS/UEFI.
+   > *Catatan*: Kernel Windows memblokir pemuatan driver uji coba (test-signed) jika Secure Boot aktif. Installer akan memperingatkan status ini secara otomatis.
 
-### Langkah Pemasangan:
-1. Unduh paket rilis atau kompilasi driver.
-2. Buka folder `package/`.
-3. Klik kanan `install.bat` -> pilih **Run as Administrator**.
-4. Skrip akan secara otomatis:
-   - Mendaftarkan sertifikat code signing lokal 5 tahun ke Windows Certificate Store.
-   - Mengaktifkan mode Windows Test Signing (`bcdedit /set testsigning on`).
-   - Mendaftarkan node hardware PnP `ROOT\MCVAD` via Windows SetupAPI.
-   - Memasang driver ke Driver Store via `pnputil.exe`.
-5. *(Jika Windows Test Signing baru pertama kali diaktifkan, restart komputer 1x agar driver dimuat).*
+---
 
-### Menjalankan Control Panel:
-- Versi Python: Jalankan `python control_panel/mcvad_control_panel.py`.
-- Versi Native C++: Jalankan `control_panel/control_panel.exe`.
+### Metode 1: Instalasi Cepat via GUI Installer (Sangat Direkomendasikan)
 
-### Verifikasi Instalasi & Uji Audio:
+1. Unduh file `DF-OpenVCable-v1.0.0-x64.zip` dari GitHub Releases dan **ekstrak seluruh isinya** ke satu folder lokal (misal: `C:\DF-OpenVCable`).
+2. Klik kanan pada **`DF-OpenVCable_Setup.exe`** -> pilih **Run as administrator**.
+3. Periksa status sistem pada panel installer:
+   - Jika **Secure Boot: [AKTIF]** (Merah): Matikan Secure Boot terlebih dahulu melalui pengaturan BIOS/UEFI komputer Anda.
+   - Jika **Secure Boot: [NONAKTIF]** (Hijau): Sistem siap menjalankan driver.
+4. Klik tombol **Pasang DF-OpenVCable**.
+   Installer akan otomatis menjalankan 5 tahapan:
+   - `[1/5]` Mengimpor sertifikat uji coba (`MCVAD_TestCert.cer`) ke store `Trusted Root` dan `TrustedPublisher`.
+   - `[2/5]` Mengaktifkan Windows Test Signing (`bcdedit /set testsigning on`).
+   - `[3/5]` Mendaftarkan node hardware audio virtual (`ROOT\MCVAD`).
+   - `[4/5]` Memasang driver ke Driver Store via `pnputil.exe`.
+   - `[5/5]` Menyalin `control_panel.exe` ke `C:\Program Files\DF-OpenVCable\` serta membuat shortcut di Desktop dan Start Menu.
+5. **Restart Komputer**:
+   Jika Windows Test Signing baru pertama kali diaktifkan, installer akan meminta konfirmasi restart. Klik **Yes** untuk me-restart komputer agar kernel Windows memuat driver.
+
+---
+
+### Metode 2: Instalasi Manual via Skrip (CLI)
+
+Bagi pengguna teknis atau automasi:
+1. Masuk ke subfolder `Driver/`.
+2. Klik kanan **`install.bat`** -> pilih **Run as administrator**.
+3. Restart komputer jika Test Signing baru diaktifkan.
+
+---
+
+### Menghilangkan Watermark "Test Mode" (Opsional)
+
+Setelah Windows Test Signing aktif, Windows akan memunculkan teks kecil watermark di pojok kanan bawah desktop.
+* Buka folder `Tools/`.
+* Klik kanan **`Remove-Watermark.exe`** -> pilih **Run as administrator**.
+* Klik **Patch Watermark**, lalu restart explorer atau komputer Anda.
+
+---
+
+### Menjalankan Control Panel
+
+Setelah instalasi selesai, Anda dapat membuka Control Panel langsung dari shortcut Desktop/Start Menu (**DF-OpenVCable Control Panel**) atau menjalankan:
+* **Versi Native C++**: `C:\Program Files\DF-OpenVCable\control_panel.exe`
+* **Versi Python**: `python control_panel/mcvad_control_panel.py`
+
+---
+
+### Verifikasi Instalasi & Uji Audio
 Panduan bertahap lengkap (prasyarat, instalasi, uji tone loopback, troubleshooting BSOD):
 **`docs/VALIDATION.md`**
 
@@ -64,8 +104,13 @@ powershell -ExecutionPolicy Bypass -File tests\mcvad_selftest.ps1
 powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern "DF-OpenVCable 1"
 ```
 
-### Pencabutan / Uninstall Bersih:
-- Klik kanan `package/uninstall.bat` -> pilih **Run as Administrator**.
+---
+
+### Pencabutan / Uninstall Bersih
+
+* **Via GUI**: Buka kembali `DF-OpenVCable_Setup.exe` sebagai Administrator -> Klik tombol **Hapus Driver**.
+* **Via CLI**: Masuk ke folder `Driver/` -> Klik kanan `uninstall.bat` -> pilih **Run as administrator**.
+Seluruh perangkat virtual, file aplikasi di `Program Files`, shortcut di Desktop/Start Menu, dan driver di Driver Store akan dibersihkan secara tuntas.
 
 ---
 
