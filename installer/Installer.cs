@@ -579,6 +579,37 @@ namespace DFOpenVCable
                 lblLog.Text = "DF-OpenVCable dan Control Panel telah berhasil dicopot dari sistem.";
                 lblLog.ForeColor = Color.DarkGray;
 
+                if (isTestModeActive)
+                {
+                    var optTestMode = MessageBox.Show(
+                        "Driver DF-OpenVCable dan Control Panel telah berhasil dicopot dari sistem.\n\n" +
+                        "Apakah Anda ingin menonaktifkan mode Windows Test Signing sekarang?\n\n" +
+                        "(Pilih 'Yes' untuk menjalankan 'bcdedit /set testsigning off' dan memulihkan keamanan standar Windows. Komputer perlu di-restart).",
+                        "Nonaktifkan Test Mode?",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
+
+                    if (optTestMode == DialogResult.Yes)
+                    {
+                        RunCommand("bcdedit.exe", "/set testsigning off");
+                        RefreshStatus();
+
+                        var resRestart = MessageBox.Show(
+                            "Mode Test Signing telah berhasil dinonaktifkan.\n\n" +
+                            "Komputer harus di-restart agar perubahan berlaku dan watermark Test Mode hilang.\n\n" +
+                            "Apakah Anda ingin me-restart komputer sekarang?",
+                            "Restart Komputer",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question);
+
+                        if (resRestart == DialogResult.Yes)
+                        {
+                            RunCommand("shutdown.exe", "/r /t 0");
+                        }
+                        return;
+                    }
+                }
+
                 MessageBox.Show("Driver DF-OpenVCable dan Control Panel telah berhasil dihapus dari sistem.", "Uninstall Selesai", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             finally

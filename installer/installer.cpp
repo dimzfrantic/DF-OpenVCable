@@ -268,6 +268,33 @@ void DoUninstall() {
     RefreshSystemStatus();
     EnableWindow(g_hBtnInstall, TRUE);
     AppendLog(L"DF-OpenVCable telah berhasil dicopot dari sistem.");
+
+    if (g_bTestSigningActive) {
+        int optTest = MessageBoxW(g_hMainWnd,
+            L"Driver DF-OpenVCable telah berhasil dihapus dari sistem.\n\n"
+            L"Apakah Anda ingin menonaktifkan mode Windows Test Signing sekarang?\n\n"
+            L"(Pilih 'Yes' untuk menjalankan 'bcdedit /set testsigning off' dan memulihkan keamanan standar Windows. Komputer perlu di-restart).",
+            L"Nonaktifkan Test Mode?",
+            MB_YESNO | MB_ICONQUESTION);
+
+        if (optTest == IDYES) {
+            RunHiddenCommand(L"bcdedit.exe /set testsigning off");
+            RefreshSystemStatus();
+
+            int optRestart = MessageBoxW(g_hMainWnd,
+                L"Mode Test Signing telah berhasil dinonaktifkan.\n\n"
+                L"Komputer harus di-restart agar perubahan berlaku dan watermark Test Mode hilang.\n\n"
+                L"Apakah Anda ingin me-restart komputer sekarang?",
+                L"Restart Komputer",
+                MB_YESNO | MB_ICONQUESTION);
+
+            if (optRestart == IDYES) {
+                RunHiddenCommand(L"shutdown.exe /r /t 0");
+            }
+            return;
+        }
+    }
+
     MessageBoxW(g_hMainWnd, L"Driver DF-OpenVCable telah berhasil dihapus dari sistem.", L"Uninstall Selesai", MB_OK | MB_ICONINFORMATION);
 }
 
