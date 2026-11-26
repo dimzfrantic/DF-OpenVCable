@@ -186,11 +186,11 @@ Uji ini memainkan tone 1 kHz ke endpoint playback kabel, merekam dari endpoint
 recording kabel yang sama, lalu mengukur level sinyal.
 
 ```powershell
-# Kabel 1 (Main)
-powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern "DF-OpenVCable 1"
-
 # Kabel A
 powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern "DF-OpenVCable A"
+
+# Kabel B
+powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern "DF-OpenVCable B"
 ```
 
 Hasil PASS terlihat seperti ini:
@@ -221,7 +221,7 @@ Exit code: `0` = PASS, `1` = FAIL, `2` = endpoint tidak ditemukan.
 
 ## 8. Uji kelima kabel
 
-Ulangi langkah 7 untuk `1`, `A`, `B`, `C`, `D`. Syarat lulus: **5 dari 5 PASS**.
+Ulangi langkah 7 untuk `A`, `B`, `C`, `D`, `E`. Syarat lulus: **5 dari 5 PASS**.
 
 Yang perlu diperhatikan: pastikan tone pada kabel A tidak bocor ke kabel B.
 Uji isolasi cepat — mainkan tone ke kabel A, lalu probe kabel B:
@@ -247,7 +247,7 @@ control_panel.exe
 
 Yang harus terjadi:
 
-- Muncul jendela dengan 5 tab (Cable 1, A, B, C, D).
+- Muncul jendela dengan 5 tab (Cable A, B, C, D, E).
 - Dropdown sample rate default **48000 Hz**.
 - Dropdown buffer latency default **500 ms**.
 - Klik **Apply Configuration** → bila driver aktif, muncul pesan berhasil;
@@ -304,8 +304,8 @@ powershell -ExecutionPolicy Bypass -File tests\mcvad_selftest.ps1 -Json
 powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -List
 
 # Uji satu kabel
-powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern "DF-OpenVCable 1"
+powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern "DF-OpenVCable A"
 
 # Ukur level saja (tanpa playback)
-powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Probe -Pattern "DF-OpenVCable 1"
+powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Probe -Pattern "DF-OpenVCable A"
 ```

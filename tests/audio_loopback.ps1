@@ -30,7 +30,7 @@
     powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -List
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern 'DF-OpenVCable 1'
+    powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern 'DF-OpenVCable A'
 
 .NOTES
     Exit code: 0 = PASS, 1 = FAIL, 2 = endpoint tidak ditemukan.

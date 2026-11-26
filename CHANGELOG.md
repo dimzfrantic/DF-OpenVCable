@@ -241,7 +241,7 @@
 
 ## [1.0.0-draft] - 2026-11-18
 ### Added
-- **Single Driver Architecture**: Menggabungkan 5 pasang virtual audio endpoint (Virtual Cable 1/Main, A, B, C, D) ke dalam satu adapter driver kernel.
+- **Single Driver Architecture**: Menggabungkan 5 pasang virtual audio endpoint (Virtual Cable A, B, C, D, E) ke dalam satu adapter driver kernel.
 - **Circular Ring Buffer Engine** (`src/ringbuffer.h`, `src/ringbuffer.cpp`):
   - Alokasi memori non-paged (`NonPagedPoolNx`).
   - Proteksi spinlock thread-safe antar-core dan IRQL.
@@ -252,7 +252,7 @@
   - Simulasi linear clock dan timestamp query via `KeQueryPerformanceCounter`.
 - **Adapter & PnP Lifecycle** (`src/adapter.cpp`):
   - Registrasi driver entry via `PcInitializeAdapterDriver` dan `PcAddAdapterDevice`.
-  - Instansiasi 5 pasang subdevice terpisah (`Cable1`, `CableA`, `CableB`, `CableC`, `CableD`) via `PcRegisterSubdevice`.
+  - Instansiasi 5 pasang subdevice terpisah (`CableA`, `CableB`, `CableC`, `CableD`, `CableE`) via `PcRegisterSubdevice`.
 - **Packaging & INF** (`package/mcvad.inf`, `package/mcvad.vcxproj`):
   - File instalasi INF modern Windows 10/11 (Class MEDIA, ClassGUID `{4d36e96c-e325-11ce-bfc1-08002be10318}`).
   - Registrasi 5 interface KSCATEGORY (RENDER, CAPTURE, AUDIO, REALTIME).

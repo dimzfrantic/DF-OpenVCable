@@ -60,11 +60,11 @@ if %ERRORLEVEL% equ 0 (
     echo ==========================================================
 echo [SUKSES] MCVAD berhasil dipasang ke sistem!
 echo Ke-5 Virtual Audio Cable kini terdaftar di Sound Settings:
-echo   - Virtual Cable 1
 echo   - Virtual Cable A
 echo   - Virtual Cable B
 echo   - Virtual Cable C
 echo   - Virtual Cable D
+echo   - Virtual Cable E
 echo ==========================================================
 ) else (
     echo.

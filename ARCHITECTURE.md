@@ -7,11 +7,11 @@ Windows Audio Subsystem (PortCls) mengizinkan satu adapter mendaftarkan banyak s
 ```
                             ┌─── [ MCVAD Adapter Driver (.sys) ] ───┐
                             │                                       │
-[ App 1 Player ]  ──► [ Cable 1 In  (Render)  ] ──► (FIFO Buffer 0) ──► [ Cable 1 Out (Capture) ] ──► [ App 1 Rec ]
-[ App 2 Player ]  ──► [ Cable A In  (Render)  ] ──► (FIFO Buffer 1) ──► [ Cable A Out (Capture) ] ──► [ App 2 Rec ]
-[ App 3 Player ]  ──► [ Cable B In  (Render)  ] ──► (FIFO Buffer 2) ──► [ Cable B Out (Capture) ] ──► [ App 3 Rec ]
-[ App 4 Player ]  ──► [ Cable C In  (Render)  ] ──► (FIFO Buffer 3) ──► [ Cable C Out (Capture) ] ──► [ App 4 Rec ]
-[ App 5 Player ]  ──► [ Cable D In  (Render)  ] ──► (FIFO Buffer 4) ──► [ Cable D Out (Capture) ] ──► [ App 5 Rec ]
+[ App 1 Player ]  ──► [ Cable A In  (Render)  ] ──► (FIFO Buffer 0) ──► [ Cable A Out (Capture) ] ──► [ App 1 Rec ]
+[ App 2 Player ]  ──► [ Cable B In  (Render)  ] ──► (FIFO Buffer 1) ──► [ Cable B Out (Capture) ] ──► [ App 2 Rec ]
+[ App 3 Player ]  ──► [ Cable C In  (Render)  ] ──► (FIFO Buffer 2) ──► [ Cable C Out (Capture) ] ──► [ App 3 Rec ]
+[ App 4 Player ]  ──► [ Cable D In  (Render)  ] ──► (FIFO Buffer 3) ──► [ Cable D Out (Capture) ] ──► [ App 4 Rec ]
+[ App 5 Player ]  ──► [ Cable E In  (Render)  ] ──► (FIFO Buffer 4) ──► [ Cable E Out (Capture) ] ──► [ App 5 Rec ]
                             └───────────────────────────────────────┘
 ```
 

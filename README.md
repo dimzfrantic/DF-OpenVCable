@@ -5,11 +5,11 @@
 Proyek ini menghadirkan arsitektur **All-in-One Single Driver**: satu file binary kernel (`mcvad.sys`) dan satu file instalasi (`.inf`) yang langsung menyediakan **5 pasang Virtual Audio Cable independen** secara simultan tanpa memecah-mecah driver menjadi beberapa paket terpisah.
 
 ## 🎛️ Daftar Endpoint Audio (5 Pasang Kabel Independen)
-1. **DF-OpenVCable 1 (Main)**: Render & Capture
-2. **DF-OpenVCable A**: Render & Capture
-3. **DF-OpenVCable B**: Render & Capture
-4. **DF-OpenVCable C**: Render & Capture
-5. **DF-OpenVCable D**: Render & Capture
+1. **DF-OpenVCable A**: Render & Capture
+2. **DF-OpenVCable B**: Render & Capture
+3. **DF-OpenVCable C**: Render & Capture
+4. **DF-OpenVCable D**: Render & Capture
+5. **DF-OpenVCable E**: Render & Capture
 
 Setiap sinyal audio yang diputar ke perangkat Playback/Render secara otomatis dialirkan secara *loss-free* dan *zero-latency* ke perangkat Recording/Capture pada kabel yang bersangkutan melalui memori kernel non-paged pool.
 
@@ -101,7 +101,7 @@ Panduan bertahap lengkap (prasyarat, instalasi, uji tone loopback, troubleshooti
 powershell -ExecutionPolicy Bypass -File tests\mcvad_selftest.ps1
 
 # Uji apakah audio benar-benar mengalir (tone 1 kHz playback -> recording)
-powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern "DF-OpenVCable 1"
+powershell -ExecutionPolicy Bypass -File tests\audio_loopback.ps1 -Test -Pattern "DF-OpenVCable A"
 ```
 
 ---

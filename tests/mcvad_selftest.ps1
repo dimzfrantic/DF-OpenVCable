@@ -186,7 +186,7 @@ $endpoints = @()
 try {
     $endpoints = Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue |
                  Where-Object {
-                     $_.FriendlyName -match 'DF-OpenVCable|Virtual Cable (1|[ABCD])\b' -and
+                     $_.FriendlyName -match 'DF-OpenVCable|Virtual Cable ([A-E])\b' -and
                      $_.FriendlyName -notmatch 'VB-Audio|Voicemeeter'
                  }
 } catch { }

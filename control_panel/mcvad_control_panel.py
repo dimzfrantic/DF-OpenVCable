@@ -25,11 +25,11 @@ IOCTL_MCVAD_SET_CABLE_CONFIG = CTL_CODE(FSCTL_MCVAD_BASE, 0x802, METHOD_BUFFERED
 IOCTL_MCVAD_RESET_CABLE_STATS = CTL_CODE(FSCTL_MCVAD_BASE, 0x803, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 CABLE_NAMES = [
-    "Virtual Cable 1 (Main)",
     "Virtual Cable A",
     "Virtual Cable B",
     "Virtual Cable C",
-    "Virtual Cable D"
+    "Virtual Cable D",
+    "Virtual Cable E"
 ]
 
 SAMPLE_RATES = [
@@ -96,14 +96,14 @@ class MCVADControlPanelApp:
         self.status_lbl = tk.Label(top_frame, text=status_text, fg=status_color, font=("Segoe UI", 9, "bold"))
         self.status_lbl.pack(side=tk.RIGHT)
 
-        # Notebook for Tabs (Cable 1, A, B, C, D)
+        # Notebook for Tabs (Cable A, B, C, D, E)
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         self.cable_tabs = []
         for i, name in enumerate(CABLE_NAMES):
             tab = ttk.Frame(self.notebook, padding="15")
-            self.notebook.add(tab, text=f"Cable {['1', 'A', 'B', 'C', 'D'][i]}")
+            self.notebook.add(tab, text=f"Cable {['A', 'B', 'C', 'D', 'E'][i]}")
             self.build_cable_tab(tab, i, name)
 
         # Bottom Controls
