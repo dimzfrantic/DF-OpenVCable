@@ -202,6 +202,30 @@ jobs:
           }
           Write-Host "Control panel successfully built: control_panel.exe"
 
+      - name: Build GUI Installer & Watermark Tool
+        shell: pwsh
+        run: |
+          $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $csc)) {
+              $cscCmd = Get-Command csc.exe -ErrorAction SilentlyContinue
+              if ($cscCmd) { $csc = $cscCmd.Source }
+          }
+          if (-not $csc -or -not (Test-Path $csc)) {
+              throw "Kompiler C# bawaan Windows (csc.exe) tidak ditemukan!"
+          }
+          Write-Host "Menggunakan C# Compiler: $csc"
+
+          Write-Host "[1/2] Mengompilasi DF-OpenVCable Setup GUI..."
+          & $csc /nologo /target:winexe /platform:x64 /optimize+ /out:installer\DF-OpenVCable_Setup.exe installer\Installer.cs
+          if ($LASTEXITCODE -ne 0) { throw "Gagal mengompilasi installer/Installer.cs" }
+          Copy-Item installer\DF-OpenVCable_Setup.exe installer\DF-OpenVCable-Setup.exe -Force
+          Write-Host "OK: installer/DF-OpenVCable_Setup.exe"
+
+          Write-Host "[2/2] Mengompilasi Watermark Remover Tool..."
+          & $csc /nologo /target:winexe /platform:x64 /optimize+ /out:tools\Remove-Watermark.exe tools\WatermarkPatcher.cs
+          if ($LASTEXITCODE -ne 0) { throw "Gagal mengompilasi tools/WatermarkPatcher.cs" }
+          Write-Host "OK: tools/Remove-Watermark.exe"
+
       - name: Lint PowerShell Scripts
         shell: pwsh
         run: |
@@ -226,23 +250,33 @@ jobs:
         run: |
           $pkg = "release/DF-OpenVCable-v1.0.0-x64"
           New-Item -ItemType Directory -Path $pkg -Force | Out-Null
-          Copy-Item package/mcvad.sys $pkg/ -Force -ErrorAction SilentlyContinue
-          Copy-Item package/mcvad.inf $pkg/ -Force
-          Copy-Item package/mcvad.cat $pkg/ -Force -ErrorAction SilentlyContinue
-          Copy-Item package/MCVAD_TestCert.cer $pkg/ -Force -ErrorAction SilentlyContinue
-          Copy-Item package/install.bat $pkg/ -Force
-          Copy-Item package/uninstall.bat $pkg/ -Force
-          Copy-Item package/create_device.ps1 $pkg/ -Force
-          Copy-Item package/setup_cert.bat $pkg/ -Force
-          Copy-Item package/repair.bat $pkg/ -Force
-          Copy-Item package/update_driver.bat $pkg/ -Force
-          Copy-Item package/reload_driver.bat $pkg/ -Force
-          Copy-Item package/enable_device.bat $pkg/ -Force
+          New-Item -ItemType Directory -Path "$pkg/Driver" -Force | Out-Null
+          New-Item -ItemType Directory -Path "$pkg/Tools" -Force | Out-Null
+
+          # 1. Main Setup & Control Panel
+          Copy-Item installer/DF-OpenVCable_Setup.exe $pkg/ -Force
           Copy-Item control_panel/control_panel.exe $pkg/ -Force -ErrorAction SilentlyContinue
           Copy-Item control_panel/mcvad_control_panel.py $pkg/ -Force
           Copy-Item README.md $pkg/ -Force -ErrorAction SilentlyContinue
 
-          # Sertakan harness validasi & panduan agar paket bisa dipakai mandiri
+          # 2. Driver Components (ke Driver/ dan root untuk kompatibilitas)
+          $driverFiles = @(
+              "mcvad.sys", "mcvad.inf", "mcvad.cat", "MCVAD_TestCert.cer",
+              "install.bat", "uninstall.bat", "create_device.ps1", "setup_cert.bat",
+              "repair.bat", "update_driver.bat", "reload_driver.bat", "enable_device.bat"
+          )
+          foreach ($f in $driverFiles) {
+              $src = "package/$f"
+              if (Test-Path $src) {
+                  Copy-Item $src "$pkg/Driver/" -Force
+                  Copy-Item $src "$pkg/" -Force
+              }
+          }
+
+          # 3. Tools Components
+          Copy-Item tools/Remove-Watermark.exe "$pkg/Tools/" -Force
+
+          # 4. Harness validasi & panduan
           New-Item -ItemType Directory -Path "$pkg/tests" -Force | Out-Null
           New-Item -ItemType Directory -Path "$pkg/docs" -Force | Out-Null
           Copy-Item tests/mcvad_selftest.ps1 $pkg/tests/ -Force
@@ -251,15 +285,31 @@ jobs:
           Copy-Item docs/VALIDATION.md $pkg/docs/ -Force
 
           # Verifikasi isi paket sebelum dikemas (fail-fast jika artefak utama hilang)
-          $required = @("mcvad.sys", "mcvad.inf", "mcvad.cat", "control_panel.exe", "MCVAD_TestCert.cer",
-                        "tests/mcvad_selftest.ps1", "tests/audio_loopback.ps1", "docs/VALIDATION.md")
+          $required = @(
+              "DF-OpenVCable_Setup.exe",
+              "control_panel.exe",
+              "mcvad.sys",
+              "mcvad.inf",
+              "mcvad.cat",
+              "MCVAD_TestCert.cer",
+              "Driver/mcvad.sys",
+              "Driver/mcvad.inf",
+              "Tools/Remove-Watermark.exe",
+              "tests/mcvad_selftest.ps1",
+              "tests/audio_loopback.ps1",
+              "docs/VALIDATION.md"
+          )
           foreach ($f in $required) {
               if (-not (Test-Path (Join-Path $pkg $f))) {
                   throw "Paket tidak lengkap: '$f' tidak ditemukan di $pkg"
               }
           }
           Write-Host "Isi paket release:"
-          Get-ChildItem $pkg | ForEach-Object { Write-Host ("  {0,-32} {1,8} bytes" -f $_.Name, $_.Length) }
+          Get-ChildItem $pkg -Recurse | ForEach-Object {
+              if (-not $_.PSIsContainer) {
+                  Write-Host ("  {0,-40} {1,10} bytes" -f $_.FullName.Substring((Resolve-Path $pkg).Path.Length + 1), $_.Length)
+              }
+          }
 
           $zip = "release/DF-OpenVCable-v1.0.0-x64.zip"
           Compress-Archive -Path "$pkg/*" -DestinationPath $zip -Force
@@ -280,8 +330,11 @@ jobs:
           body: |
             Build otomatis dari branch `main` (commit ${{ github.sha }}).
 
-            Paket berisi driver kernel `mcvad.sys` (5 pasang Virtual Audio Cable),
-            INF, katalog test-signed, sertifikat uji, skrip instalasi, dan Control Panel.
+            Paket All-in-One v1.0.0 (x64):
+            - **DF-OpenVCable_Setup.exe**: One-Click GUI Setup & Driver Manager (Administrator).
+            - **Driver (mcvad.sys)**: 5 pasang Virtual Audio Cable (Line 1 s.d. Line D) ultra-low latency.
+            - **Control Panel (control_panel.exe)**: Native monitor buffer & konfigurasi sample rate audio.
+            - **Tools (Remove-Watermark.exe)**: Utilitas pembersih watermark Windows Test Mode.
           prerelease: true
           overwrite_files: true
           files: release/DF-OpenVCable-v1.0.0-x64.zip
