@@ -261,9 +261,25 @@ void DoUninstall() {
         RunHiddenCommand(cmdPs);
     }
 
-    std::wstring infPath = appDir + L"mcvad.inf";
-    std::wstring cmdPnp = L"pnputil.exe /delete-driver \"" + infPath + L"\" /uninstall /force";
-    RunHiddenCommand(cmdPnp);
+    // PENTING: pnputil /delete-driver butuh nama published (oemNN.inf), bukan path
+    // file INF. Memberi path membuat perintah gagal diam-diam dan driver tetap
+    // terpasang walau uninstall dilaporkan "berhasil".
+    std::wstring cmdRemovePkgs =
+        L"powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \""
+        L"$o = & pnputil /enum-drivers | Out-String; "
+        L"$blocks = $o -split '(\\r?\\n){2,}'; "
+        L"foreach ($b in $blocks) { "
+        L"if ($b -match 'mcvad\\.inf') { "
+        L"$m = [regex]::Match($b, 'oem\\d+\\.inf'); "
+        L"if ($m.Success) { & pnputil /delete-driver $m.Value /uninstall /force } } }\"";
+    RunHiddenCommand(cmdRemovePkgs);
+
+    // Bersihkan service key sisa bila pnputil tidak sempat menghapusnya.
+    HKEY hSvc = NULL;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\mcvad", 0, KEY_READ, &hSvc) == ERROR_SUCCESS) {
+        RegCloseKey(hSvc);
+        RunHiddenCommand(L"sc.exe delete mcvad");
+    }
 
     RefreshSystemStatus();
     EnableWindow(g_hBtnInstall, TRUE);

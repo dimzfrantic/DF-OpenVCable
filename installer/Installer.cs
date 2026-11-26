@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Security.Principal;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -163,6 +166,100 @@ namespace DFOpenVCable
             {
                 return "ERROR: " + ex.Message;
             }
+        }
+
+        private static int RunCommandExit(string file, string args, out string output)
+        {
+            output = "";
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = file,
+                    Arguments = args,
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                using (var p = Process.Start(psi))
+                {
+                    output = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit();
+                    return p.ExitCode;
+                }
+            }
+            catch (Exception ex)
+            {
+                output = "ERROR: " + ex.Message;
+                return -1;
+            }
+        }
+
+        // PENTING: pnputil /delete-driver WAJIB diberi nama published (oemNN.inf),
+        // bukan path file INF. Memberi path membuat perintah gagal diam-diam sehingga
+        // driver tetap terpasang walau uninstall dilaporkan "berhasil".
+        private static string[] GetDriverStorePackages(string originalInfName)
+        {
+            var found = new List<string>();
+            try
+            {
+                string output = RunCommand("pnputil.exe", "/enum-drivers");
+                if (string.IsNullOrEmpty(output) || output.StartsWith("ERROR:")) return found.ToArray();
+
+                // Parser locale-independent: pisahkan blok per paket (dipisah baris kosong),
+                // lalu ambil token oemNN.inf dari blok yang memuat nama INF asli kita.
+                var blocks = new List<string>();
+                var current = new StringBuilder();
+                foreach (string rawLine in output.Split('\n'))
+                {
+                    if (rawLine.Trim().Length == 0)
+                    {
+                        if (current.Length > 0) { blocks.Add(current.ToString()); current.Length = 0; }
+                    }
+                    else
+                    {
+                        current.AppendLine(rawLine);
+                    }
+                }
+                if (current.Length > 0) blocks.Add(current.ToString());
+
+                var oemPattern = new Regex(@"\boem\d+\.inf\b", RegexOptions.IgnoreCase);
+                foreach (string block in blocks)
+                {
+                    if (block.IndexOf(originalInfName, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    Match m = oemPattern.Match(block);
+                    if (m.Success && !found.Contains(m.Value)) found.Add(m.Value);
+                }
+            }
+            catch { }
+            return found.ToArray();
+        }
+
+        private static int RemoveDriverStorePackages(string originalInfName)
+        {
+            int removed = 0;
+            foreach (string pkg in GetDriverStorePackages(originalInfName))
+            {
+                string ignored;
+                if (RunCommandExit("pnputil.exe", string.Format("/delete-driver {0} /uninstall /force", pkg), out ignored) == 0)
+                {
+                    removed++;
+                }
+            }
+            return removed;
+        }
+
+        private static bool McvadServiceRegistered()
+        {
+            try
+            {
+                using (var k = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\mcvad"))
+                {
+                    return k != null;
+                }
+            }
+            catch { return false; }
         }
 
         private static string FindComponentFile(string appDir, string fileName)
@@ -409,22 +506,23 @@ namespace DFOpenVCable
                 lblTestMode.ForeColor = Color.DarkGoldenrod;
             }
 
-            // 3. Driver Status
-            isDriverInstalled = false;
-            try
-            {
-                using (var k = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\mcvad"))
-                {
-                    if (k != null) isDriverInstalled = true;
-                }
-            }
-            catch { }
+            // 3. Driver Status — service key ATAU paket di Driver Store
+            bool serviceExists = McvadServiceRegistered();
+            int storePackages = serviceExists ? 0 : GetDriverStorePackages("mcvad.inf").Length;
+            isDriverInstalled = serviceExists || storePackages > 0;
 
-            if (isDriverInstalled)
+            if (serviceExists)
             {
                 lblDriverStatus.Text = "Status Driver: [TERPASANG] - 5 Pasang DF-OpenVCable terdaftar.";
                 lblDriverStatus.ForeColor = Color.Green;
                 btnInstall.Text = "Perbarui / Pasang Ulang";
+                btnUninstall.Enabled = true;
+            }
+            else if (storePackages > 0)
+            {
+                lblDriverStatus.Text = string.Format("Status Driver: [RESIDU] - {0} paket mcvad.inf masih ada di Driver Store. Klik 'Hapus Driver' untuk membersihkan.", storePackages);
+                lblDriverStatus.ForeColor = Color.DarkOrange;
+                btnInstall.Text = "Pasang DF-OpenVCable";
                 btnUninstall.Enabled = true;
             }
             else
@@ -571,9 +669,18 @@ namespace DFOpenVCable
                     RunCommand("powershell.exe", string.Format("-NoProfile -ExecutionPolicy Bypass -File \"{0}\" -Remove", psScript));
                 }
 
-                // 3. Uninstall and force delete driver from driver store
-                string infPath = FindComponentFile(appDir, "mcvad.inf");
-                RunCommand("pnputil.exe", string.Format("/delete-driver \"{0}\" /uninstall /force", infPath));
+                // 3. Cabut SEMUA paket mcvad.inf dari Windows Driver Store.
+                //    pnputil /delete-driver butuh nama published (oemNN.inf); memberi path
+                //    file INF membuat perintah gagal dan driver tetap terpasang.
+                lblLog.Text = "Mencabut paket driver dari Windows Driver Store...";
+                lblLog.Update();
+                int removedPackages = RemoveDriverStorePackages("mcvad.inf");
+
+                // 4. Hapus service key sisa bila pnputil tidak sempat membersihkannya.
+                if (McvadServiceRegistered())
+                {
+                    RunCommand("sc.exe", "delete mcvad");
+                }
 
                 RefreshStatus();
                 lblLog.Text = "DF-OpenVCable dan Control Panel telah berhasil dicopot dari sistem.";
@@ -610,7 +717,9 @@ namespace DFOpenVCable
                     }
                 }
 
-                MessageBox.Show("Driver DF-OpenVCable dan Control Panel telah berhasil dihapus dari sistem.", "Uninstall Selesai", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(string.Format(
+                    "Driver DF-OpenVCable dan Control Panel telah berhasil dihapus dari sistem.\n\n{0} paket driver dicabut dari Windows Driver Store.",
+                    removedPackages), "Uninstall Selesai", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             finally
             {

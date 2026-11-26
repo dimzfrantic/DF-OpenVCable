@@ -1,5 +1,27 @@
 # Changelog: DF-OpenVCable (DimzFrantic Open Virtual Audio Cable)
 
+## [1.0.1] - 2026-11-26
+
+### Fixed
+- **Tombol "Hapus Driver" tidak benar-benar mencabut driver** (`installer/Installer.cs`, `installer/installer.cpp`).
+
+  `pnputil /delete-driver` hanya menerima **nama published** (`oemNN.inf`), bukan path file INF.
+  Kode lama memberi `C:\...\mcvad.inf`, sehingga perintah gagal tanpa dilaporkan, dan paket driver
+  tetap tertinggal di Driver Store. Gejalanya: setelah uninstall + restart, Setup masih menampilkan
+  `Status Driver: [TERPASANG]` karena service key `HKLM\SYSTEM\CurrentControlSet\Services\mcvad`
+  belum terhapus.
+
+  Perbaikan:
+  - Enumerasi `pnputil /enum-drivers`, ambil setiap blok yang memuat `mcvad.inf`, lalu hapus
+    paketnya memakai nama published (`oemNN.inf`) dengan `/uninstall /force`. Semua versi lama
+    ikut dibersihkan (di mesin uji: 13 paket menumpuk dari 13 kali update).
+  - Fallback `sc delete mcvad` bila service key masih ada setelah pnputil selesai.
+  - Deteksi status kini membedakan `[TERPASANG]` (service key ada) vs `[RESIDU]` (hanya paket
+    tertinggal di Driver Store), supaya sisa paket tidak lagi tak terlihat.
+
+### Changed
+- Uninstall menampilkan jumlah paket driver yang berhasil dicabut.
+
 ## [1.0.0.14] - 2026-11-25
 
 ### Fixed
