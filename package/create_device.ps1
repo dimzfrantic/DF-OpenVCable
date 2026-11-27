@@ -483,11 +483,13 @@ if ($Repair) {
         Write-Host "[MCVAD] Tidak ada devnode DF-OpenVCable sama sekali." -ForegroundColor Yellow
         Write-Host "        Jalankan create_device.ps1 tanpa -Repair untuk membuatnya." -ForegroundColor Yellow
     } else {
-        $disabled = Get-DisabledMcvadDevices
-        if ($disabled.Count -gt 0) {
-            $null = Enable-McvadDevices $disabled
-        } else {
-            Write-Host "[MCVAD] Semua devnode DF-OpenVCable sudah enabled." -ForegroundColor Gray
+        Write-Host "[MCVAD] Merestart devnode DF-OpenVCable (disable/enable cycle)..." -ForegroundColor Cyan
+        foreach ($d in $devs) {
+            try { & pnputil.exe /restart-device $d.InstanceId | Out-Null } catch {}
+            try { Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+            Start-Sleep -Milliseconds 600
+            try { Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+            Start-Sleep -Milliseconds 600
         }
 
         $svc = Get-Service mcvad -ErrorAction SilentlyContinue
@@ -585,12 +587,33 @@ if ($Remove) {
             Write-Host "[MCVAD] Root device node berhasil dibuat di Device Manager!" -ForegroundColor Green
             Write-Host "[MCVAD] Memindai perangkat PnP baru..." -ForegroundColor Gray
             & pnputil /scan-devices | Out-Null
+            Start-Sleep -Milliseconds 800
+
+            $devs = @(Get-PnpDevice -ErrorAction SilentlyContinue |
+                      Where-Object { $_.InstanceId -like 'ROOT\MCVAD*' -or
+                                     ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*') })
+            foreach ($d in $devs) {
+                try { & pnputil.exe /restart-device $d.InstanceId | Out-Null } catch {}
+                try { Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+                Start-Sleep -Milliseconds 600
+                try { Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+                Start-Sleep -Milliseconds 600
+            }
         } else {
             Write-Host "[MCVAD] Gagal membuat device node: $errDetail" -ForegroundColor Yellow
         }
     } elseif ($existing -eq 1) {
-        Write-Host "[MCVAD] Devnode sudah ada (1 instance) - tidak membuat duplikat." -ForegroundColor Green
-        Write-Host "[MCVAD] Memindai ulang perangkat PnP..." -ForegroundColor Gray
+        Write-Host "[MCVAD] Devnode sudah ada (1 instance) - merestart devnode untuk memuat driver..." -ForegroundColor Green
+        $devs = @(Get-PnpDevice -ErrorAction SilentlyContinue |
+                  Where-Object { $_.InstanceId -like 'ROOT\MCVAD*' -or
+                                 ($_.InstanceId -like 'ROOT\MEDIA\*' -and $_.FriendlyName -like '*OpenVCable*') })
+        foreach ($d in $devs) {
+            try { & pnputil.exe /restart-device $d.InstanceId | Out-Null } catch {}
+            try { Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+            Start-Sleep -Milliseconds 600
+            try { Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+            Start-Sleep -Milliseconds 600
+        }
         & pnputil /scan-devices | Out-Null
     } else {
         Write-Host "[MCVAD] PERINGATAN: ditemukan $existing devnode duplikat untuk $HardwareId." -ForegroundColor Yellow
