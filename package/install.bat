@@ -53,13 +53,28 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%create_device.p
 
 :: 6. Pasang driver ke Driver Store & Device
 echo.
-echo [LANGKAH 4/4] Memasang INF Driver ke Windows via PnPUtil...
+echo [LANGKAH 4/5] Memasang INF Driver ke Windows via PnPUtil...
 pnputil.exe /add-driver "%INF_PATH%" /install
 if %ERRORLEVEL% equ 0 (
     echo.
-    echo ==========================================================
-echo [SUKSES] MCVAD berhasil dipasang ke sistem!
-echo Ke-5 Virtual Audio Cable kini terdaftar di Sound Settings:
+    echo [OK] INF Driver terpasang ke Driver Store & Device.
+) else (
+    echo.
+    echo [INFO] pnputil menambahkan driver dengan kode: %ERRORLEVEL%.
+    echo Jika device belum langsung aktif, periksa Device Manager di kategori 'Sound, video and game controllers'.
+)
+
+:: 7. Pasang Endpoint Self-Heal Task (memastikan endpoint selalu muncul tiap boot)
+if exist "%SCRIPT_DIR%Repair-DFEndpoints.ps1" (
+    echo.
+    echo [LANGKAH 5/5] Memasang & menjalankan Endpoint Self-Heal...
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%Repair-DFEndpoints.ps1" -Install
+)
+
+echo.
+echo ==========================================================
+echo [SUKSES] DF-OpenVCable siap digunakan!
+echo Ke-5 Virtual Audio Cable terdaftar di Sound Settings:
 echo   - Virtual Cable A
 echo   - Virtual Cable B
 echo   - Virtual Cable C

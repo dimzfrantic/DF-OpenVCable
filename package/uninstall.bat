@@ -18,6 +18,12 @@ if %ERRORLEVEL% neq 0 (
 
 set SCRIPT_DIR=%~dp0
 
+:: 1.5 Hapus Scheduled Task Self-Heal jika ada
+if exist "%SCRIPT_DIR%Repair-DFEndpoints.ps1" (
+    echo [LANGKAH 0/2] Menghapus Scheduled Task Endpoint Heal...
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%Repair-DFEndpoints.ps1" -Uninstall >nul 2>&1
+)
+
 :: 2. Hapus Device Node ROOT\MCVAD dari Device Manager
 echo [LANGKAH 1/2] Menghapus Device Node dari Device Manager...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%create_device.ps1" -Remove

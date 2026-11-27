@@ -218,6 +218,12 @@ void DoInstall() {
         RunHiddenCommand(cmdPnp);
     }
 
+    std::wstring healScript = appDir + L"Repair-DFEndpoints.ps1";
+    if (GetFileAttributesW(healScript.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        std::wstring cmdHeal = L"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"" + healScript + L"\" -Install";
+        RunHiddenCommand(cmdHeal);
+    }
+
     RefreshSystemStatus();
     EnableWindow(g_hBtnInstall, TRUE);
 

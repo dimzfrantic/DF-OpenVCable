@@ -686,6 +686,12 @@ namespace DFOpenVCable
                     RunCommand("powershell.exe", string.Format("-NoProfile -ExecutionPolicy Bypass -File \"{0}\"", psScript));
                 }
 
+                string healScript = FindComponentFile(appDir, "Repair-DFEndpoints.ps1");
+                if (File.Exists(healScript))
+                {
+                    RunCommand("powershell.exe", string.Format("-NoProfile -ExecutionPolicy Bypass -File \"{0}\" -Install", healScript));
+                }
+
                 // 5. Verifikasi nyata: berapa endpoint yang benar-benar ada di MMDevices.
                 lblLog.Text = "[5/6] Memverifikasi endpoint audio DF-OpenVCable...";
                 lblLog.Update();
@@ -786,6 +792,12 @@ namespace DFOpenVCable
                 if (File.Exists(psScript))
                 {
                     RunCommand("powershell.exe", string.Format("-NoProfile -ExecutionPolicy Bypass -File \"{0}\" -Remove", psScript));
+                }
+
+                string healScript = FindComponentFile(appDir, "Repair-DFEndpoints.ps1");
+                if (File.Exists(healScript))
+                {
+                    RunCommand("powershell.exe", string.Format("-NoProfile -ExecutionPolicy Bypass -File \"{0}\" -Uninstall", healScript));
                 }
 
                 // 3. Cabut SEMUA paket mcvad.inf dari Windows Driver Store.

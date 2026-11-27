@@ -291,7 +291,8 @@ jobs:
           $driverFiles = @(
               "mcvad.sys", "mcvad.inf", "mcvad.cat", "MCVAD_TestCert.cer",
               "install.bat", "uninstall.bat", "create_device.ps1", "setup_cert.bat",
-              "repair.bat", "update_driver.bat", "reload_driver.bat", "enable_device.bat"
+              "repair.bat", "update_driver.bat", "reload_driver.bat", "enable_device.bat",
+              "Repair-DFEndpoints.ps1", "fix_endpoints.bat", "install_endpoint_heal.bat"
           )
           foreach ($f in $driverFiles) {
               $src = "package/$f"
