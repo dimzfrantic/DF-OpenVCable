@@ -250,6 +250,88 @@ namespace DFOpenVCable
             return removed;
         }
 
+        // Verifikasi endpoint audio yang BENAR-BENAR terdaftar di MMDevices.
+        // Ini satu-satunya bukti kuat bahwa driver ter-bind dan AudioEndpointBuilder
+        // sudah mengenumerasi pin driver. Service key mcvad bisa ada tanpa satu pun
+        // endpoint hidup, jadi status "terpasang" tidak boleh dipakai sebagai bukti.
+        // Filter memakai DEVPKEY_Device_HardwareIds = ROOT\MCVAD (presisi) dengan
+        // fallback nama interface, sama seperti Get-McvadAudioEndpoints di ps1.
+        private const string PKEY_HardwareIds = "{a8b865dd-2e3d-4094-ad97-e593a70c75d6},8";
+        private const string PKEY_DeviceInterfaceName = "{b3f8fa53-0004-438e-9003-51a46e139bfc},6";
+
+        private static int CountAudioEndpoints()
+        {
+            int count = 0;
+            foreach (string flow in new string[] { "Render", "Capture" })
+            {
+                try
+                {
+                    using (var root = Registry.LocalMachine.OpenSubKey(
+                        @"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\" + flow))
+                    {
+                        if (root == null) continue;
+                        foreach (string id in root.GetSubKeyNames())
+                        {
+                            try
+                            {
+                                using (var props = root.OpenSubKey(id + @"\Properties"))
+                                {
+                                    if (props == null) continue;
+
+                                    bool ours = false;
+                                    foreach (string hw in RegistryValueToStrings(props.GetValue(PKEY_HardwareIds)))
+                                    {
+                                        if (hw.IndexOf(@"ROOT\MCVAD", StringComparison.OrdinalIgnoreCase) >= 0)
+                                        {
+                                            ours = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!ours)
+                                    {
+                                        string ifName = RegistryValueToString(props.GetValue(PKEY_DeviceInterfaceName));
+                                        ours = ifName.IndexOf("OpenVCable", StringComparison.OrdinalIgnoreCase) >= 0;
+                                    }
+                                    if (ours) count++;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+                catch { }
+            }
+            return count;
+        }
+
+        private static string RegistryValueToString(object value)
+        {
+            if (value == null) return "";
+            var s = value as string;
+            if (s != null) return s;
+            var bytes = value as byte[];
+            if (bytes != null)
+            {
+                return Encoding.Unicode.GetString(bytes).TrimEnd('\0');
+            }
+            return value.ToString();
+        }
+
+        private static string[] RegistryValueToStrings(object value)
+        {
+            if (value == null) return new string[0];
+            var arr = value as string[];
+            if (arr != null) return arr;
+            var bytes = value as byte[];
+            if (bytes != null)
+            {
+                string joined = Encoding.Unicode.GetString(bytes);
+                return joined.Split(new char[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
+            }
+            string single = value.ToString();
+            return single.Length == 0 ? new string[0] : new string[] { single };
+        }
+
         private static bool McvadServiceRegistered()
         {
             try
@@ -561,7 +643,7 @@ namespace DFOpenVCable
             try
             {
                 // 1. Import Certificate
-                lblLog.Text = "[1/5] Mengimpor sertifikat pengujian (MCVAD_TestCert.cer)...";
+                lblLog.Text = "[1/6] Mengimpor sertifikat pengujian (MCVAD_TestCert.cer)...";
                 lblLog.Update();
                 string certPath = FindComponentFile(appDir, "MCVAD_TestCert.cer");
                 if (File.Exists(certPath))
@@ -571,7 +653,7 @@ namespace DFOpenVCable
                 }
 
                 // 2. Enable Test Signing
-                lblLog.Text = "[2/5] Mengaktifkan Windows Test Signing (bcdedit)...";
+                lblLog.Text = "[2/6] Mengaktifkan Windows Test Signing (bcdedit)...";
                 lblLog.Update();
                 bool needRestart = false;
                 if (!isTestModeActive)
@@ -580,17 +662,12 @@ namespace DFOpenVCable
                     needRestart = true;
                 }
 
-                // 3. Create Root Device Node
-                lblLog.Text = "[3/5] Mendaftarkan Root Device Node audio di Windows...";
-                lblLog.Update();
-                string psScript = FindComponentFile(appDir, "create_device.ps1");
-                if (File.Exists(psScript))
-                {
-                    RunCommand("powershell.exe", string.Format("-NoProfile -ExecutionPolicy Bypass -File \"{0}\"", psScript));
-                }
-
-                // 4. Install Driver Package via PnPUtil
-                lblLog.Text = "[4/5] Memasang paket driver INF via PnPUtil...";
+                // 3. Pasang paket driver INF DULU — urutan ini krusial.
+                //    Devnode root yang dibuat sebelum paket INF ada di Driver Store
+                //    tidak akan pernah ter-bind ke driver (kode 28: driver not
+                //    installed), sehingga tidak ada satu pun audio endpoint yang
+                //    muncul di Sound Settings walau semuanya dilaporkan "sukses".
+                lblLog.Text = "[3/6] Memasang paket driver INF ke Windows Driver Store...";
                 lblLog.Update();
                 string infPath = FindComponentFile(appDir, "mcvad.inf");
                 if (File.Exists(infPath))
@@ -598,8 +675,24 @@ namespace DFOpenVCable
                     RunCommand("pnputil.exe", string.Format("/add-driver \"{0}\" /install", infPath));
                 }
 
-                // 5. Install Control Panel & Shortcuts
-                lblLog.Text = "[5/5] Menginstalasi Control Panel & membuat shortcut...";
+                // 4. Baru buat / restart root device node supaya driver ter-bind.
+                //    create_device.ps1 juga menjalankan disable/enable cycle lalu
+                //    me-restart AudioEndpointBuilder agar endpoint langsung terdaftar.
+                lblLog.Text = "[4/6] Mendaftarkan & merestart Root Device Node audio...";
+                lblLog.Update();
+                string psScript = FindComponentFile(appDir, "create_device.ps1");
+                if (File.Exists(psScript))
+                {
+                    RunCommand("powershell.exe", string.Format("-NoProfile -ExecutionPolicy Bypass -File \"{0}\"", psScript));
+                }
+
+                // 5. Verifikasi nyata: berapa endpoint yang benar-benar ada di MMDevices.
+                lblLog.Text = "[5/6] Memverifikasi endpoint audio DF-OpenVCable...";
+                lblLog.Update();
+                int endpoints = CountAudioEndpoints();
+
+                // 6. Install Control Panel & Shortcuts
+                lblLog.Text = "[6/6] Menginstalasi Control Panel & membuat shortcut...";
                 lblLog.Update();
                 InstallAppFilesAndShortcuts(appDir);
 
@@ -607,13 +700,16 @@ namespace DFOpenVCable
 
                 if (needRestart)
                 {
-                    lblLog.Text = "Instalasi selesai! Restart Windows diperlukan agar Test Signing aktif.";
+                    lblLog.Text = "Instalasi selesai. Restart Windows diperlukan agar Test Signing aktif & driver dapat dimuat.";
                     lblLog.ForeColor = Color.DarkRed;
                     btnRestart.Visible = true;
                     var r = MessageBox.Show(
-                        "Instalasi driver & Control Panel DF-OpenVCable telah selesai!\n\n" +
-                        "Windows Test Signing telah diaktifkan, namun komputer HARUS di-restart agar driver dapat dimuat kernel.\n\n" +
-                        "Apakah Anda ingin me-restart komputer sekarang?",
+                        "Driver DF-OpenVCable dan Control Panel sudah terpasang di sistem.\n\n" +
+                        "Windows Test Signing baru saja diaktifkan. Selama komputer belum di-restart, kernel menolak " +
+                        "memuat mcvad.sys sehingga ke-10 endpoint (5 Playback + 5 Recording) BELUM muncul di Sound " +
+                        "Settings. Ini normal dan bukan kegagalan instalasi.\n\n" +
+                        "Endpoint terdeteksi saat ini: " + endpoints + " dari 10.\n\n" +
+                        "Restart sekarang? Setelah restart, jalankan 'create_device.ps1 -Verify' bila endpoint belum muncul.",
                         "Restart Diperlukan",
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question);
@@ -623,16 +719,36 @@ namespace DFOpenVCable
                         RunCommand("shutdown.exe", "/r /t 0");
                     }
                 }
-                else
+                else if (endpoints >= 10)
                 {
-                    lblLog.Text = "SUKSES: DF-OpenVCable & Control Panel berhasil dipasang!";
+                    lblLog.Text = "SUKSES: 10 endpoint audio DF-OpenVCable terverifikasi.";
                     lblLog.ForeColor = Color.Green;
                     MessageBox.Show(
                         "Selamat! Driver DF-OpenVCable dan Control Panel berhasil dipasang.\n\n" +
-                        "Ke-5 kabel virtual (A s.d. E) kini aktif dan shortcut Control Panel tersedia di Desktop dan Start Menu.",
+                        "Terverifikasi " + endpoints + " endpoint audio di MMDevices (5 Playback + 5 Recording).\n" +
+                        "Shortcut Control Panel tersedia di Desktop dan Start Menu.",
                         "Instalasi Sukses",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
+                }
+                else
+                {
+                    lblLog.Text = string.Format(
+                        "SELESAI DENGAN PERINGATAN: hanya {0} dari 10 endpoint audio terdeteksi.", endpoints);
+                    lblLog.ForeColor = Color.DarkOrange;
+                    MessageBox.Show(
+                        "Driver dan Control Panel sudah terpasang, tetapi baru " + endpoints + " dari 10 endpoint audio " +
+                        "yang terdaftar di MMDevices.\n\n" +
+                        "Artinya devnode kemungkinan belum ter-bind ke driver (kode 28) atau AudioEndpointBuilder " +
+                        "masih memakai cache lama.\n\n" +
+                        "Langkah perbaikan — buka Command Prompt sebagai Administrator:\n\n" +
+                        "  1. pnputil /restart-device \"ROOT\\MEDIA\\0004\"\n" +
+                        "  2. net stop audiosrv /y  &  net start audiosrv\n" +
+                        "  3. powershell -ExecutionPolicy Bypass -File create_device.ps1 -Repair\n\n" +
+                        "Bila masih belum muncul, restart Windows lalu jalankan create_device.ps1 -Verify.",
+                        "Instalasi Selesai Dengan Peringatan",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                 }
             }
             finally

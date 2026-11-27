@@ -1,0 +1,81 @@
+====================================================================
+  DF-OpenVCable v1.0.0 (x64) - Petunjuk Instalasi & Penggunaan
+====================================================================
+
+DF-OpenVCable adalah driver audio virtual multi-channel (5 pasang kabel:
+Line A s.d. Line E) untuk Windows 64-bit dengan latensi rendah.
+
+--------------------------------------------------------------------
+1. PRASYARAT SISTEM
+--------------------------------------------------------------------
+* Sistem Operasi : Windows 10 / 11 (64-bit / x64)
+* Hak Akses      : Administrator
+* Secure Boot    : WAJIB DINONAKTIFKAN (Disabled) di pengaturan BIOS/UEFI.
+  Alasan: Driver ini menggunakan tanda tangan digital uji coba
+  (test-signed driver) sehingga kernel Windows hanya akan memuatnya
+  jika Secure Boot mati dan Test Signing aktif.
+
+--------------------------------------------------------------------
+2. CARA INSTALASI OTOMATIS (SANGAT DISARANKAN)
+--------------------------------------------------------------------
+1. Ekstrak seluruh isi file arsip ZIP ini ke satu folder (misal: C:\DF-OpenVCable).
+   PENTING: Jangan menjalankan installer langsung dari dalam file ZIP.
+
+2. Klik kanan file 'DF-OpenVCable_Setup.exe', lalu pilih 'Run as administrator'
+   (Jalankan sebagai administrator).
+
+3. Periksa status sistem pada tampilan Setup:
+   - Jika Secure Boot terbaca AKTIF (Merah), matikan terlebih dahulu di BIOS.
+   - Jika Secure Boot NONAKTIF (Hijau), Anda siap melanjutkan.
+
+4. Klik tombol 'Pasang DF-OpenVCable'. Installer akan otomatis:
+   * Mengimpor sertifikat pengujian (MCVAD_TestCert.cer) ke Trusted Root.
+   * Mengaktifkan mode Windows Test Signing (bcdedit /set testsigning on).
+   * Memasang paket driver kernel mcvad.inf ke Windows Driver Store (pnputil).
+   * Mendaftarkan node perangkat audio virtual lalu me-restart-nya
+     (disable/enable cycle) agar driver langsung ter-bind.
+   * Menyegarkan layanan AudioEndpointBuilder supaya ke-10 endpoint audio
+     langsung terdaftar di MMDevices.
+   * Memverifikasi jumlah endpoint dan menampilkan hasilnya di akhir instalasi.
+   * Menyalin DF-OpenVCable Control Panel ke C:\Program Files\DF-OpenVCable\.
+   * Membuat shortcut aplikasi di Desktop dan Start Menu.
+
+5. Restart Komputer (WAJIB bila Test Signing baru diaktifkan):
+   Selama komputer belum di-restart, kernel Windows menolak memuat mcvad.sys,
+   sehingga ke-10 endpoint (5 Playback + 5 Recording) BELUM muncul di Sound
+   Settings. Ini normal, bukan kegagalan instalasi. Klik 'Yes' pada dialog
+   restart. Setelah restart, 5 Virtual Cable (Line A s.d. Line E) akan muncul
+   sebagai 5 perangkat Playback dan 5 perangkat Recording.
+
+6. Verifikasi setelah restart (opsional, Command Prompt sebagai Administrator):
+   powershell -ExecutionPolicy Bypass -File Driver\create_device.ps1 -Verify
+   Harapannya: "5 endpoint Render + 5 endpoint Capture aktif (10 total)".
+
+   Bila jumlahnya kurang, jalankan:
+   powershell -ExecutionPolicy Bypass -File Driver\create_device.ps1 -Repair
+
+--------------------------------------------------------------------
+3. MENGHILANGKAN WATERMARK "TEST MODE" (OPSIONAL)
+--------------------------------------------------------------------
+Setelah Test Signing diaktifkan, Windows mungkin menampilkan teks watermark
+'Test Mode' di sudut kanan bawah desktop.
+
+Untuk menghilangkannya:
+1. Masuk ke folder 'Tools'.
+2. Klik kanan 'Remove-Watermark.exe' -> pilih 'Run as administrator'.
+3. Ikuti petunjuk di layar, lalu restart explorer atau komputer.
+
+--------------------------------------------------------------------
+4. CARA PENGGUNAAN CONTROL PANEL
+--------------------------------------------------------------------
+* Buka 'DF-OpenVCable Control Panel' melalui shortcut Desktop atau Start Menu.
+* Anda dapat memantau aktivitas kabel virtual, buffer size, sample rate (48 kHz / 96 kHz),
+  serta me-reset endpoint jika diperlukan.
+
+--------------------------------------------------------------------
+5. CARA PENGHAPUSAN (UNINSTALL)
+--------------------------------------------------------------------
+1. Jalankan kembali 'DF-OpenVCable_Setup.exe' sebagai Administrator.
+2. Klik tombol 'Hapus Driver'.
+3. Seluruh driver, shortcut, dan berkas di Program Files akan dibersihkan secara tuntas.
+====================================================================
