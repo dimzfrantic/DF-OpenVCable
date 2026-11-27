@@ -148,9 +148,11 @@ jobs:
           # Percayai sertifikat ini di runner supaya 'signtool verify /pa' di bawah
           # benar-benar memvalidasi rantai sertifikat, bukan gagal karena root
           # tidak dikenal (CERT_E_UNTRUSTEDROOT).
-          certutil.exe -addstore -f Root package/MCVAD_TestCert.cer | Out-Null
-          certutil.exe -addstore -f TrustedPublisher package/MCVAD_TestCert.cer | Out-Null
-          Log "Sertifikat CI ditambahkan ke Root + TrustedPublisher runner."
+          Log "=== certutil -addstore Root ==="
+          Log (certutil.exe -addstore -f Root package/MCVAD_TestCert.cer 2>&1 | Out-String)
+          Log "certutil Root exit code: $LASTEXITCODE"
+          Log (certutil.exe -addstore -f TrustedPublisher package/MCVAD_TestCert.cer 2>&1 | Out-String)
+          Log "certutil TrustedPublisher exit code: $LASTEXITCODE"
 
           # PENTING - urutan: tanda tangani mcvad.sys DULU, baru generate catalog.
           # Inf2Cat menghitung hash file saat katalog dibuat. Kalau mcvad.sys
