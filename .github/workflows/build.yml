@@ -145,7 +145,23 @@ jobs:
           Export-Certificate -Cert $cert -FilePath package/MCVAD_TestCert.cer | Out-Null
           Log "Sertifikat test signing dibuat: $($cert.Thumbprint)"
 
-          # Generate catalog via Inf2Cat
+          # PENTING - urutan: tanda tangani mcvad.sys DULU, baru generate catalog.
+          # Inf2Cat menghitung hash file saat katalog dibuat. Kalau mcvad.sys
+          # ditandatangani SETELAH Inf2Cat, hash di dalam mcvad.cat tidak lagi cocok
+          # dengan file di disk sehingga Windows menolak memuat driver
+          # (Event 3004 / 0xC0000428).
+          if ($SignTool) {
+              Log "=== signtool mcvad.sys (embedded, page hashes) ==="
+              Log (& $SignTool sign /v /fd SHA256 /ph /s My /n "MCVAD CI Test Certificate" package/mcvad.sys 2>&1 | Out-String)
+              Log "signtool sys exit code: $LASTEXITCODE"
+              if ($LASTEXITCODE -ne 0) {
+                  Log "PERINGATAN: penandatanganan mcvad.sys gagal."
+              }
+          } else {
+              Log "PERINGATAN: signtool.exe tidak ditemukan di seluruh $binRoot"
+          }
+
+          # Generate catalog via Inf2Cat (atas binary yang SUDAH ditandatangani)
           if ($Inf2Cat) {
               Log "=== Inf2Cat output ==="
               $inf2catOut = & $Inf2Cat /driver:package /os:10_X64,Server10_X64 2>&1 | Out-String
@@ -161,18 +177,21 @@ jobs:
               Log "PERINGATAN: package/mcvad.cat TIDAK ADA setelah Inf2Cat."
           }
 
-          # Sign mcvad.sys dan mcvad.cat via signtool.exe
+          # Tanda tangani mcvad.cat (katalog hasil Inf2Cat) + verifikasi keduanya
           if ($SignTool) {
-              Log "=== signtool mcvad.sys ==="
-              Log (& $SignTool sign /v /fd SHA256 /s My /n "MCVAD CI Test Certificate" package/mcvad.sys 2>&1 | Out-String)
-              Log "signtool sys exit code: $LASTEXITCODE"
               if (Test-Path package/mcvad.cat) {
                   Log "=== signtool mcvad.cat ==="
                   Log (& $SignTool sign /v /fd SHA256 /s My /n "MCVAD CI Test Certificate" package/mcvad.cat 2>&1 | Out-String)
                   Log "signtool cat exit code: $LASTEXITCODE"
+
+                  Log "=== signtool verify mcvad.cat ==="
+                  Log (& $SignTool verify /v /pa package/mcvad.cat 2>&1 | Out-String)
+                  Log "verify cat exit code: $LASTEXITCODE"
               }
-          } else {
-              Log "PERINGATAN: signtool.exe tidak ditemukan di seluruh $binRoot"
+
+              Log "=== signtool verify mcvad.sys ==="
+              Log (& $SignTool verify /v /pa package/mcvad.sys 2>&1 | Out-String)
+              Log "verify sys exit code: $LASTEXITCODE"
           }
 
           # Publikasikan diagnostik ke branch ci-log (channel log yang sudah terbukti)
@@ -283,6 +302,7 @@ jobs:
           Copy-Item tests/audio_loopback.ps1 $pkg/tests/ -Force
           Copy-Item tests/diagnose_startdevice.ps1 $pkg/tests/ -Force
           Copy-Item docs/VALIDATION.md $pkg/docs/ -Force
+          Copy-Item docs/PETUNJUK_INSTALASI.txt $pkg/ -Force
 
           # Verifikasi isi paket sebelum dikemas (fail-fast jika artefak utama hilang)
           $required = @(
@@ -297,7 +317,8 @@ jobs:
               "Tools/Remove-Watermark.exe",
               "tests/mcvad_selftest.ps1",
               "tests/audio_loopback.ps1",
-              "docs/VALIDATION.md"
+              "docs/VALIDATION.md",
+              "PETUNJUK_INSTALASI.txt"
           )
           foreach ($f in $required) {
               if (-not (Test-Path (Join-Path $pkg $f))) {
@@ -332,7 +353,7 @@ jobs:
 
             Paket All-in-One v1.0.0 (x64):
             - **DF-OpenVCable_Setup.exe**: One-Click GUI Setup & Driver Manager (Administrator).
-            - **Driver (mcvad.sys)**: 5 pasang Virtual Audio Cable (Line 1 s.d. Line D) ultra-low latency.
+            - **Driver (mcvad.sys)**: 5 pasang Virtual Audio Cable (Line A s.d. Line E = 5 Playback + 5 Recording) ultra-low latency.
             - **Control Panel (control_panel.exe)**: Native monitor buffer & konfigurasi sample rate audio.
             - **Tools (Remove-Watermark.exe)**: Utilitas pembersih watermark Windows Test Mode.
           prerelease: true
